@@ -52,7 +52,7 @@ public class MainActivity extends android.app.Activity {
     private WifiManager wifiManager;
     private volatile boolean isProbeFlood = false, isBtNameTurbo = false;
     private volatile boolean isMdnsSpoof = false, isSsdpSpoof = false, isHoneypot = false;
-    private int probeFloodNetId = -1;
+    private volatile int probeFloodNetId = -1;
     private BluetoothDevice inspectTarget = null;
     private AdvertiseCallback fuzzCallback = null, activeBleAdCb = null, activeBleFireCb = null;
 
