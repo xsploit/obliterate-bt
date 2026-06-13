@@ -54,6 +54,7 @@ public class MainActivity extends android.app.Activity {
     private volatile boolean isMdnsSpoof = false, isSsdpSpoof = false, isHoneypot = false;
     private int probeFloodNetId = -1;
     private BluetoothDevice inspectTarget = null;
+    private AdvertiseCallback fuzzCallback = null, activeBleAdCb = null, activeBleFireCb = null;
 
     // ── Common ─────────────────────────────────
     private Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -611,9 +612,10 @@ public class MainActivity extends android.app.Activity {
                                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                                 .setConnectable(false).setTimeout(0).build();
-                            try { adv2.startAdvertising(fs, fd, new AdvertiseCallback() {
+                            fuzzCallback = new AdvertiseCallback() {
                                 public void onStartSuccess(AdvertiseSettings s) {}
-                            }); } catch (Exception e) {}
+                            };
+                            try { adv2.startAdvertising(fs, fd, fuzzCallback); } catch (Exception e) {}
                             log("  [" + val + "] 0x" + Integer.toHexString(val).toUpperCase());
                         }});
                     }
@@ -1327,6 +1329,7 @@ public class MainActivity extends android.app.Activity {
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(false).setTimeout(0).build();
             BleAdCb cb = new BleAdCb(name);
+            activeBleAdCb = cb;
             adv.startAdvertising(s, d, sr, cb);
             mainHandler.postDelayed(new Runnable() { public void run() {
                 adv.stopAdvertising(cb); if (isBleSpam) startBleCycle();
@@ -1513,6 +1516,7 @@ public class MainActivity extends android.app.Activity {
         default: return;
         }
         BleFireCb cb = new BleFireCb();
+        activeBleFireCb = cb;
         adv.startAdvertising(s, d, cb);
         final int delay = (currentBleMode == 16) ? 200 : 2000;
         mainHandler.postDelayed(new Runnable() { public void run() { try { BluetoothLeAdvertiser a = btAdapter.getBluetoothLeAdvertiser(); if (a != null) a.stopAdvertising(cb); } catch (Exception e) {} if (isBleTargetActive) { if (isCycling) { currentBleMode = (currentBleMode + 1) % 27; } fireTargetedBle(); } }}, delay);
@@ -1639,6 +1643,15 @@ public class MainActivity extends android.app.Activity {
         isMdnsSpoof = false; isSsdpSpoof = false; isHoneypot = false;
         if (btAdapter != null && btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
         if (leScanner != null && activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
+        // Stop active BLE advertisers
+        if (btAdapter != null) {
+            BluetoothLeAdvertiser adv = btAdapter.getBluetoothLeAdvertiser();
+            if (adv != null) {
+                if (fuzzCallback != null) { try { adv.stopAdvertising(fuzzCallback); } catch (Exception e) {} fuzzCallback = null; }
+                if (activeBleAdCb != null) { try { adv.stopAdvertising(activeBleAdCb); } catch (Exception e) {} activeBleAdCb = null; }
+                if (activeBleFireCb != null) { try { adv.stopAdvertising(activeBleFireCb); } catch (Exception e) {} activeBleFireCb = null; }
+            }
+        }
         if (wifiP2pManager != null && wifiChannel != null)
             try { wifiP2pManager.stopPeerDiscovery(wifiChannel, null); } catch (Exception e) {}
         resetBtn(btnDiscSpam, "📡 DISC FLOOD");
