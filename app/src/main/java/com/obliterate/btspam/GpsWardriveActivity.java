@@ -70,6 +70,7 @@ public class GpsWardriveActivity extends Activity {
         if (bm != null) { btAdapter = bm.getAdapter(); leScanner = btAdapter != null ? btAdapter.getBluetoothLeScanner() : null; }
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (locationManager == null) { log("⚠ No location manager"); }
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OB:GPS");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -92,7 +93,7 @@ public class GpsWardriveActivity extends Activity {
         stopAll();
         mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
-        try { locationManager.removeUpdates(locationListener); } catch (Exception e) {}
+        if (locationManager != null) try { locationManager.removeUpdates(locationListener); } catch (Exception e) {}
         super.onDestroy();
     }
 
