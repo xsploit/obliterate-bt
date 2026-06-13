@@ -183,6 +183,14 @@ public class MainActivity extends android.app.Activity {
         }});
         content.addView(btnBtTools);
 
+        // Network Attacks button
+        Button btnNetwork = mkBtn("🌐  NETWORK ATTACKS");
+        btnNetwork.setTextColor(0xFF00BFFF);
+        btnNetwork.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            startActivity(new android.content.Intent(MainActivity.this, NetworkActivity.class));
+        }});
+        content.addView(btnNetwork);
+
         // ESP32 bridge button
         Button btnEspBridge = mkBtn("📡  ESP32 CONTROL PANEL");
         btnEspBridge.setTextColor(0xFF00BFFF);

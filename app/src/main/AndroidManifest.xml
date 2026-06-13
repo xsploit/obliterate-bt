@@ -56,5 +56,11 @@
             android:exported="false"
             android:configChanges="orientation|screenSize" />
 
+        <activity
+            android:name=".NetworkActivity"
+            android:label="Network Attacks"
+            android:exported="false"
+            android:configChanges="orientation|screenSize" />
+
     </application>
 </manifest>
