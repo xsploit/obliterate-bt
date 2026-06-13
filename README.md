@@ -43,12 +43,17 @@ firmware build.
     <tr>
       <td>Main panel</td>
       <td><code>MainActivity.java</code></td>
-      <td>Launcher UI, Bluetooth scan/export controls, BLE advertisement modes, BLE fuzzer controls, Wi-Fi Direct controls, and shortcuts into the secondary modules.</td>
+      <td>Launcher UI, targeted BLE advertisement modes, protocol/profile-aware BLE fuzzer controls, stop/log controls, and shortcuts into the secondary modules.</td>
     </tr>
     <tr>
       <td>BLE modes</td>
       <td><code>MainActivity.java</code></td>
-      <td>A mode spinner backed by the local <code>bleModes</code> array, plus advertising callbacks and stop paths.</td>
+      <td>A mode spinner backed by local payload builders, advertising callbacks, stop paths, and seed/test-pattern labels where behavior has not been fully device-verified.</td>
+    </tr>
+    <tr>
+      <td>BLE fuzzer</td>
+      <td><code>MainActivity.java</code></td>
+      <td>Model/profile selector, byte range controls, preset mappings, and payload builders for Swift Pair, Fast Pair seeds, Apple-style seeds, Samsung seeds, LoveSpouse seeds, AirSense seed, Nearby Share seed, Eddystone, iBeacon, and Exposure Notify seed frames.</td>
     </tr>
     <tr>
       <td>Bluetooth tools</td>
@@ -63,7 +68,7 @@ firmware build.
     <tr>
       <td>GPS wardrive</td>
       <td><code>GpsWardriveActivity.java</code></td>
-      <td>GPS-tagged Bluetooth/BLE observations, device mapping, GeoJSON export, and GPX track export.</td>
+      <td>GPS-tagged Wi-Fi AP, Bluetooth, and BLE observations, GeoJSON export with Wi-Fi frequency/channel metadata, and GPX track export.</td>
     </tr>
     <tr>
       <td>ESP bridge</td>
@@ -92,7 +97,7 @@ firmware build.
     <tr>
       <td>Manually reported working</td>
       <td>Selected BLE modes</td>
-      <td><code>Swift Pair (Windows)</code> and some Apple BLE popup modes have been reported working in local manual testing.</td>
+      <td><code>Swift Pair (Windows)</code> and some Apple-style BLE modes have been reported working in local manual testing. Other seed/test-pattern modes should not be treated as confirmed target popups.</td>
     </tr>
     <tr>
       <td>Implemented, not completely verified</td>
@@ -150,7 +155,7 @@ Last recorded Gradle check in this workspace:
 ```text
 gradle --no-daemon --offline :app:assembleDebug
 BUILD SUCCESSFUL
-31 actionable tasks: 31 up-to-date
+31 actionable tasks: 8 executed, 23 up-to-date
 Output APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -158,8 +163,8 @@ Last recorded custom-build check in this workspace:
 
 ```text
 ./build.sh completed without errors
-213 classes compiled
-APK size: 92K
+217 classes compiled
+APK size: about 104K in build output
 APK signing verified with v1/v2/v3 schemes
 v3.1/v4/SourceStamp signatures were not present
 Java 8/deprecated API warnings were emitted
@@ -274,7 +279,12 @@ bluetooth-spammer/
 |   |-- BtToolsActivity.java
 |   |-- NetworkActivity.java
 |   |-- GpsWardriveActivity.java
-|   `-- EspControlActivity.java
+|   |-- EspControlActivity.java
+|   |-- ObBluetooth.java
+|   |-- ObNet.java
+|   |-- ObStorage.java
+|   |-- ObText.java
+|   `-- ObUi.java
 |-- app/build.gradle
 |-- build.gradle
 |-- settings.gradle

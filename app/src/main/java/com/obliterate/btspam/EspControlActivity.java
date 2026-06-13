@@ -30,6 +30,9 @@ public class EspControlActivity extends Activity {
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Thread logPoller;
+    private Thread commandThread;
+    private Thread fetchThread;
+    private HttpURLConnection activeLogConn;
     private volatile boolean destroyed = false;
 
     // UI
@@ -64,6 +67,8 @@ public class EspControlActivity extends Activity {
     protected void onDestroy() {
         destroyed = true;
         stopLogPoller();
+        if (commandThread != null) { commandThread.interrupt(); commandThread = null; }
+        if (fetchThread != null) { fetchThread.interrupt(); fetchThread = null; }
         mainHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
@@ -278,7 +283,7 @@ public class EspControlActivity extends Activity {
     private void sendCmd(final String command) {
         log("  → " + command);
         updateStatus("⚡ SENDING...");
-        new Thread(new Runnable() { public void run() {
+        commandThread = new Thread(new Runnable() { public void run() {
             HttpURLConnection conn = null;
             try {
                 URL url = new URL("http://" + GHOST_IP + API_COMMAND);
@@ -326,7 +331,8 @@ public class EspControlActivity extends Activity {
             } finally {
                 if (conn != null) conn.disconnect();
             }
-        }}).start();
+        }});
+        commandThread.start();
     }
 
     // ═══════════════════════════════════════════
@@ -339,12 +345,14 @@ public class EspControlActivity extends Activity {
             String lastLogs = "";
             while (!Thread.currentThread().isInterrupted() && !destroyed) {
                 try { Thread.sleep(2000); } catch (InterruptedException e) { break; }
+                HttpURLConnection conn = null;
                 try {
                     URL url = new URL("http://" + GHOST_IP + API_LOGS);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn = (HttpURLConnection) url.openConnection();
                     conn.setConnectTimeout(3000);
                     conn.setReadTimeout(3000);
                     conn.setRequestMethod("GET");
+                    activeLogConn = conn;
 
                     int code = conn.getResponseCode();
                     if (code == 200) {
@@ -374,8 +382,8 @@ public class EspControlActivity extends Activity {
                             }
                         }
                     }
-                    conn.disconnect();
                 } catch (Exception e) { /* poll silently */ }
+                finally { activeLogConn = null; if (conn != null) conn.disconnect(); }
             }
         }});
         logPoller.setDaemon(true);
@@ -383,14 +391,16 @@ public class EspControlActivity extends Activity {
     }
 
     private void stopLogPoller() {
+        if (activeLogConn != null) try { activeLogConn.disconnect(); } catch (Exception e) {}
         if (logPoller != null) { logPoller.interrupt(); logPoller = null; }
     }
 
     private void fetchLogs() {
-        new Thread(new Runnable() { public void run() {
+        fetchThread = new Thread(new Runnable() { public void run() {
+            HttpURLConnection conn = null;
             try {
                 URL url = new URL("http://" + GHOST_IP + API_LOGS);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(3000);
                 conn.setReadTimeout(3000);
                 conn.setRequestMethod("GET");
@@ -408,9 +418,10 @@ public class EspControlActivity extends Activity {
                     }
                     br.close();
                 }
-                conn.disconnect();
             } catch (Exception e) {}
-        }}).start();
+            finally { if (conn != null) conn.disconnect(); }
+        }});
+        fetchThread.start();
     }
 
     // ═══════════════════════════════════════════
@@ -439,8 +450,7 @@ public class EspControlActivity extends Activity {
     // ═══════════════════════════════════════════
 
     private String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+        return ObText.escapeJson(s);
     }
 
     private void updateStatus(String s) {
@@ -458,27 +468,14 @@ public class EspControlActivity extends Activity {
         }});
     }
 
-    private int dp(int px) { return (int)(px * getResources().getDisplayMetrics().density); }
+    private int dp(int px) { return ObUi.dp(this, px); }
 
     private TextView mkLabel(String txt, int color, int size) {
-        TextView tv = new TextView(this);
-        tv.setText(txt); tv.setTextColor(color); tv.setTextSize(size);
-        tv.setTypeface(Typeface.MONOSPACE);
-        tv.setPadding(0, 8, 0, 3);
-        return tv;
+        return ObUi.label(this, txt, color, size);
     }
 
     private Button mkCmdBtn(String txt, final String cmd) {
-        Button b = new Button(this);
-        b.setText(txt); b.setTextColor(0xFFFF2222);
-        b.setBackgroundColor(0xFF1A1A1A); b.setTypeface(Typeface.MONOSPACE);
-        b.setTextSize(10); b.setAllCaps(true);
-        b.setPadding(4, 14, 4, 14); b.setSingleLine(true);
-        b.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        p.setMargins(3, 5, 3, 5);
-        b.setLayoutParams(p);
+        Button b = ObUi.weightedWideButton(this, txt, 4, 3, 5);
         b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             sendCmd(cmd);
         }});
@@ -486,28 +483,10 @@ public class EspControlActivity extends Activity {
     }
 
     private Button mkBtnWide(String txt) {
-        Button b = new Button(this);
-        b.setText(txt); b.setTextColor(0xFFFF2222);
-        b.setBackgroundColor(0xFF1A1A1A); b.setTypeface(Typeface.MONOSPACE);
-        b.setTextSize(10); b.setAllCaps(true);
-        b.setPadding(8, 14, 8, 14); b.setSingleLine(true);
-        b.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        p.setMargins(4, 6, 4, 6);
-        b.setLayoutParams(p);
-        return b;
+        return ObUi.weightedWideButton(this, txt, 8, 4, 6);
     }
 
     private Button mkBtn(String txt) {
-        Button b = new Button(this);
-        b.setText(txt); b.setTextColor(0xFFFF2222);
-        b.setBackgroundColor(0xFF1A1A1A); b.setTypeface(Typeface.MONOSPACE);
-        b.setTextSize(11); b.setAllCaps(true);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.setMargins(0, 6, 0, 6);
-        b.setLayoutParams(p); b.setPadding(16, 14, 16, 14);
-        return b;
+        return ObUi.fullButton(this, txt);
     }
 }
