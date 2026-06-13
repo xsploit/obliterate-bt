@@ -269,7 +269,8 @@ public class GpsWardriveActivity extends Activity {
     }
 
     private void clearAll() {
-        mappedDevices.clear(); deviceMap.clear(); trackPoints.clear();
+        synchronized (mappedDevices) { mappedDevices.clear(); deviceMap.clear(); }
+        synchronized (trackPoints) { trackPoints.clear(); }
         updateStats();
         log("📊 Cleared all data");
     }
@@ -282,7 +283,8 @@ public class GpsWardriveActivity extends Activity {
         if (!isScanning || lastLocation == null) return;
         
         String addr = d.getAddress();
-        MappedDevice existing = deviceMap.get(addr);
+        MappedDevice existing;
+        synchronized (mappedDevices) { existing = deviceMap.get(addr); }
         
         // Only log if new or position changed significantly
         if (existing != null) {
@@ -293,7 +295,7 @@ public class GpsWardriveActivity extends Activity {
                 return;
             }
             // Remove old, add new sighting at new location
-            mappedDevices.remove(existing);
+            synchronized (mappedDevices) { mappedDevices.remove(existing); }
         }
 
         MappedDevice md = new MappedDevice();
@@ -304,8 +306,10 @@ public class GpsWardriveActivity extends Activity {
         md.timestamp = System.currentTimeMillis();
         md.deviceType = devType;
         
-        mappedDevices.add(md);
-        deviceMap.put(addr, md);
+        synchronized (mappedDevices) {
+            mappedDevices.add(md);
+            deviceMap.put(addr, md);
+        }
         
         final String entry = String.format("  📍 %s  %.5f,%.5f  %ddBm  %s",
             md.name, md.lat, md.lng, md.rssi, sdf.format(new Date(md.timestamp)));
