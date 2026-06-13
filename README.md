@@ -1,115 +1,284 @@
-<p align="center">
-  <b>☠ OBLITERATE BT</b>
+<div align="center">
+
+# OBLITERATE BT
+
+Android wireless testing workbench for Bluetooth, BLE, Wi-Fi/LAN discovery,
+GPS-tagged observations, and ESP HTTP control.
+
+<p>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84">
+  <img alt="Language" src="https://img.shields.io/badge/language-Java-007396">
+  <img alt="Custom build" src="https://img.shields.io/badge/custom_build-local_check_passed-2ea44f">
+  <img alt="Gradle" src="https://img.shields.io/badge/gradle-currently_failing-c2410c">
+  <img alt="License" src="https://img.shields.io/badge/license-not_declared-lightgrey">
 </p>
-<p align="center">
-  <i>Android Bluetooth/WiFi Attack Toolkit — 27 BLE Modes, Network Spoofing, GPS Wardriving, ESP32 Control</i>
-</p>
-<p align="center">
-  <img src="https://img.shields.io/badge/platform-Android-brightgreen" alt="Platform">
-  <img src="https://img.shields.io/badge/root-not%20required-blue" alt="Root">
-  <img src="https://img.shields.io/badge/ESP32-Ghost%20ESP%20Bridge-purple" alt="ESP32">
-  <img src="https://img.shields.io/badge/license-MIT-red" alt="License">
-</p>
 
----
+</div>
 
-## ⚠️ Disclaimer
+## What This Is
 
-**This project is for educational and security research purposes only.**
+OBLITERATE BT is an experimental Android app written against Android SDK APIs.
+The current working build path is the custom Termux shell build in
+`build.sh`.
 
-OBLITERATE is a proof-of-concept wireless security testing tool. Use it only on devices and networks you own or have explicit written permission to test. Unauthorized use against devices you do not own may violate local, state, and federal laws.
+This README is intentionally conservative: it lists features that are present in
+the codebase and calls out build/runtime limits that still matter.
 
-**You are solely responsible for your actions.** The developers assume no liability for misuse, damage, or legal consequences. Check your local laws and regulations before using any feature of this tool.
+Implemented does not mean exhaustively tested. Some modules are built into the
+APK and some have been manually checked, but the full feature set has not been
+validated across every Android version, phone model, target device, or ESP
+firmware build.
 
----
+## Implemented Feature Map
 
-## Features
+<table>
+  <thead>
+    <tr>
+      <th>Area</th>
+      <th>Implemented in</th>
+      <th>What is present in code</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Main panel</td>
+      <td><code>MainActivity.java</code></td>
+      <td>Launcher UI, Bluetooth scan/export controls, BLE advertisement modes, BLE fuzzer controls, Wi-Fi Direct controls, and shortcuts into the secondary modules.</td>
+    </tr>
+    <tr>
+      <td>BLE modes</td>
+      <td><code>MainActivity.java</code></td>
+      <td>A mode spinner backed by the local <code>bleModes</code> array, plus advertising callbacks and stop paths.</td>
+    </tr>
+    <tr>
+      <td>Bluetooth tools</td>
+      <td><code>BtToolsActivity.java</code></td>
+      <td>Classic/BLE discovery, device inspection through SDP UUID fetches, RSSI tracking, RFCOMM channel probing, name cycling controls, and scan export.</td>
+    </tr>
+    <tr>
+      <td>Network tools</td>
+      <td><code>NetworkActivity.java</code></td>
+      <td>Wi-Fi Direct discovery/connection controls, LAN-related scan buttons, NetBIOS scan, SMB scan, printer scan, scan-all sequencing, mDNS/SSDP controls, hotspot controls, and probe controls.</td>
+    </tr>
+    <tr>
+      <td>GPS wardrive</td>
+      <td><code>GpsWardriveActivity.java</code></td>
+      <td>GPS-tagged Bluetooth/BLE observations, device mapping, GeoJSON export, and GPX track export.</td>
+    </tr>
+    <tr>
+      <td>ESP bridge</td>
+      <td><code>EspControlActivity.java</code></td>
+      <td>Plain HTTP command UI, preset command buttons, custom command input, and log polling for an ESP-style device at <code>192.168.4.1</code>.</td>
+    </tr>
+  </tbody>
+</table>
 
-### 📶 27 BLE Attack Modes
-Swift Pair, Google Fast Pair (5 variants), Apple Continuity (5 variants including iOS 17 crash), Samsung Buds/Watch, LoveSpouse, AirSense CPAP spoof, AirDrop, Handoff, Tethering, Nearby Share, Eddystone-UID/URL, iBeacon, Find My Network, Exposure Notification, Aggressive 200ms cycle, Settings Flood
+## Tested Vs Implemented
 
-### 📡 Phone-Native Network Attacks
-| Attack | Description |
-|--------|-------------|
-| WiFi Probe Flood | Forces phone to blast probe requests for 18+ troll SSIDs |
-| mDNS Spoofer | Fake AirPlay/Chromecast/printers flooding LAN |
-| SSDP Spoofer | Fake TVs/routers/cameras on Windows Network |
-| Hotspot Honeypot | Open "Free_WiFi_No_Pass" hotspot, logs MAC/vendor of curious devices |
-| WiFi Direct Spam | P2P discovery + invite flooding |
-| Network Enumeration | NetBIOS / SMB share / Printer scanner with subnet sweep |
+<table>
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>What belongs here</th>
+      <th>Current notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Build-checked</td>
+      <td>Custom APK build path</td>
+      <td><code>bash build.sh</code> completed in this workspace and produced a signed APK.</td>
+    </tr>
+    <tr>
+      <td>Manually reported working</td>
+      <td>Selected BLE modes</td>
+      <td><code>Swift Pair (Windows)</code> and some Apple BLE popup modes have been reported working in local manual testing.</td>
+    </tr>
+    <tr>
+      <td>Implemented, not completely verified</td>
+      <td>Remaining BLE modes, network tools, GPS exports, Bluetooth tools, and ESP bridge controls</td>
+      <td>The code and UI paths exist, but they should be treated as needing device-by-device testing.</td>
+    </tr>
+    <tr>
+      <td>Known not clean yet</td>
+      <td>Gradle build path</td>
+      <td>The custom build works; Gradle still needs cleanup before it can be described as working.</td>
+    </tr>
+  </tbody>
+</table>
 
-### 🔍 Bluetooth Reconnaissance
-| Tool | Description |
-|------|-------------|
-| BT Scanner | Classic + BLE discovery with device class identification |
-| BT Inspector | SDP service discovery — shows all UUIDs with human-readable names |
-| RFCOMM Scanner | Probes channels 1-30 on any BT device, finds open services |
-| Distance Estimator | RSSI tracking with proximity brackets (touching → far) |
-| BT Name Turbo | 100ms name cycling through 18+ troll names |
+## Build Status
 
-### 📍 GPS Wardriving
-- Maps every BT/BLE device with exact GPS coordinates
-- Path tracking with speed/accuracy
-- Smart dedup (only logs new sightings >20m apart)
-- **Export GeoJSON** — open in geojson.io or Google My Maps
-- **Export GPX** — open in Google Earth
+<table>
+  <thead>
+    <tr>
+      <th>Build path</th>
+      <th>Status in this workspace</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>bash build.sh</code></td>
+      <td>Working in local checks</td>
+      <td>Uses <code>aapt2</code>, <code>javac</code>, <code>dx</code>, <code>zipalign</code>, and <code>apksigner</code>. Output APK is <code>build/outputs/obliterate-bt.apk</code>.</td>
+    </tr>
+    <tr>
+      <td><code>gradle --offline :app:assembleDebug</code></td>
+      <td>Currently failing locally</td>
+      <td>The SDK platform is present, including <code>android-35/source.properties</code> with <code>AndroidVersion.ApiLevel=35</code> and an <code>android-35/android.jar</code>. The failure appears to be Gradle-side, not a missing SDK platform.</td>
+    </tr>
+  </tbody>
+</table>
 
-### 📡 ESP32 Control (Ghost ESP Bridge)
-- HTTP API bridge to Ghost ESP firmware
-- Full command set: WiFi scan, deauth, beacon spam, BLE spam, evil portal, packet capture
-- Auto-polling log viewer
+Gradle context:
 
-### 🔬 Byte Fuzzer
-13 protocol presets for systematic BLE payload discovery:
-Apple Continuity types, Swift Pair, Fast Pair, Samsung, LoveSpouse
+- `app/build.gradle` declares `compileSdk 35` and `targetSdk 35`.
+- `android-sdk/platforms/android-35/source.properties` exists and reports
+  `AndroidVersion.ApiLevel=35`.
+- `android-sdk/platforms/android-35/android.jar` exists.
+- The repository has Gradle wrapper metadata for Gradle `8.4`, but no checked-in
+  `gradlew` script was found locally.
+- The available system Gradle `9.5.1` failed during project evaluation.
+- Current working assumption: the remaining Gradle issue is environment,
+  daemon/cache, or SDK index related. The custom shell build remains the
+  reliable build path right now.
 
----
+Last recorded custom-build check in this workspace:
 
-## Build (Termux, no PC needed)
+```text
+./build.sh completed without errors
+213 classes compiled
+APK size: 92K
+APK signing verified with v1/v2/v3 schemes
+v3.1/v4/SourceStamp signatures were not present
+Java 8/deprecated API warnings were emitted
+```
 
-```bash
-# Requirements
-pkg install aapt2 openjdk-17 dx apksigner zipalign
+## Version And SDK Reality
 
-# Clone
-git clone https://github.com/xsploit/obliterate-bt
-cd obliterate-bt
+There are currently two build configurations in the repository:
 
-# Build + install
+<table>
+  <thead>
+    <tr>
+      <th>Source</th>
+      <th>Version</th>
+      <th>Target SDK</th>
+      <th>Comment</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>AndroidManifest.xml</code> and <code>build.sh</code></td>
+      <td><code>4.4</code> / code <code>4</code></td>
+      <td><code>28</code></td>
+      <td>This is the custom shell build path.</td>
+    </tr>
+    <tr>
+      <td><code>app/build.gradle</code></td>
+      <td><code>2.0</code> / code <code>1</code></td>
+      <td><code>35</code></td>
+      <td>This metadata is not currently aligned with the custom build.</td>
+    </tr>
+  </tbody>
+</table>
+
+That mismatch matters. Android permission behavior can change depending on the
+target SDK and install path.
+
+## Runtime Requirements
+
+The manifest declares permissions for:
+
+- Bluetooth legacy APIs.
+- Bluetooth scan, connect, and advertise APIs.
+- Wi-Fi state/change access.
+- Location access required by Android Bluetooth/Wi-Fi scanning behavior.
+- Internet access for network and ESP HTTP features.
+- Wake lock usage for long-running operations.
+
+Hardware support is marked as optional for Bluetooth and Wi-Fi Direct, so the
+app can install on more devices, but individual modules still depend on the
+actual phone/tablet hardware and Android vendor behavior.
+
+## ESP Bridge
+
+`EspControlActivity` targets an ESP-style HTTP API at:
+
+```text
+http://192.168.4.1
+```
+
+The UI text assumes:
+
+```text
+SSID: GhostNet
+Password: GhostNet
+```
+
+The manifest currently enables cleartext traffic with
+`android:usesCleartextTraffic="true"`. That matches the plain HTTP bridge, but
+it also means this is not an HTTPS-secured control channel.
+
+## Install Notes
+
+From Termux, after a custom build that completes without errors:
+
+```sh
 bash build.sh
 cp build/outputs/obliterate-bt.apk ~/storage/downloads/
-# Install via file manager or: pm install ~/storage/downloads/obliterate-bt.apk
 ```
 
-**No Android Studio, no Gradle, no PC.** Pure aapt2 + javac + dx pipeline.
+Install with Android's package installer, or use `pm install` if your device
+setup allows it.
 
----
+## Limits And Caveats
 
-## ESP32 Setup (optional)
+- Runtime behavior depends on Android version, target SDK, permissions granted,
+  chipset support, vendor Bluetooth/Wi-Fi behavior, and local radio conditions.
+- The custom shell build is the known-good path in this workspace; Gradle still
+  needs cleanup before it can be treated as a reliable build path. The installed
+  SDK platform itself appears to be present.
+- Build metadata is split between the manifest/build script and Gradle.
+- Export behavior can vary across Android storage models.
+- Some features use legacy Android APIs and reflective Bluetooth calls, so
+  behavior can vary across devices.
+- The ESP bridge uses plain HTTP on a local AP-style address.
 
-1. Flash [Ghost ESP](https://ghostesp.net) to your ESP32-S3/C3/C6
-2. Connect phone to `GhostNet` WiFi (password: `GhostNet`)
-3. Open OBLITERATE → 📡 ESP32 CONTROL PANEL
-4. Phone becomes the ESP32's screen and controller
+## Responsible Use
 
----
+Use this only on devices, networks, and radio environments you own or are
+explicitly authorized to test. The code does not guarantee legal, safe, or
+reliable behavior in every environment.
 
-## Project Structure
+## Project Layout
 
+```text
+bluetooth-spammer/
+|-- app/src/main/AndroidManifest.xml
+|-- app/src/main/java/com/obliterate/btspam/
+|   |-- MainActivity.java
+|   |-- BtToolsActivity.java
+|   |-- NetworkActivity.java
+|   |-- GpsWardriveActivity.java
+|   `-- EspControlActivity.java
+|-- app/build.gradle
+|-- build.gradle
+|-- settings.gradle
+|-- build.sh
+|-- ATTACK_REFERENCE.md
+|-- RESEARCH.md
+`-- README.md
 ```
-obliterate-bt/
-├── app/src/main/java/com/obliterate/btspam/
-│   ├── MainActivity.java          — BLE arsenal + launcher (27 modes + fuzzer)
-│   ├── BtToolsActivity.java       — Scanner, inspector, distance, RFCOMM
-│   ├── NetworkActivity.java       — Probe flood, mDNS, SSDP, hotspot, LAN scan
-│   ├── GpsWardriveActivity.java   — GPS-tagged device mapping
-│   └── EspControlActivity.java    — Ghost ESP HTTP bridge
-├── build.sh                        — APK builder (aapt2 + javac + dx)
-└── ATTACK_REFERENCE.md             — BLE payload reference
-```
 
----
+## Related Notes
+
+- `ATTACK_REFERENCE.md`: local BLE payload notes and references.
+- `RESEARCH.md`: local research notes.
+- `downloads/fixreport.html`: bug review report outside this repository.
 
 ## License
 
-MIT — do whatever you want, at your own risk.
+No license file is currently present in this repository. Do not assume any
+license terms until a real `LICENSE` file is added.
