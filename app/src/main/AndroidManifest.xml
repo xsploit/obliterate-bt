@@ -62,5 +62,11 @@
             android:exported="false"
             android:configChanges="orientation|screenSize" />
 
+        <activity
+            android:name=".GpsWardriveActivity"
+            android:label="GPS Wardriving"
+            android:exported="false"
+            android:configChanges="orientation|screenSize" />
+
     </application>
 </manifest>

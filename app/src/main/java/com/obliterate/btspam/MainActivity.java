@@ -183,6 +183,14 @@ public class MainActivity extends android.app.Activity {
         }});
         content.addView(btnBtTools);
 
+        // GPS Wardriving button
+        Button btnGps = mkBtn("📍  GPS WARDRIVING");
+        btnGps.setTextColor(0xFF00FF41);
+        btnGps.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            startActivity(new android.content.Intent(MainActivity.this, GpsWardriveActivity.class));
+        }});
+        content.addView(btnGps);
+
         // Network Attacks button
         Button btnNetwork = mkBtn("🌐  NETWORK ATTACKS");
         btnNetwork.setTextColor(0xFF00BFFF);
