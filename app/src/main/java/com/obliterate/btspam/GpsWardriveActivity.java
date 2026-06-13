@@ -239,6 +239,9 @@ public class GpsWardriveActivity extends Activity {
         btAdapter.startDiscovery();
 
         if (leScanner != null) {
+            if (activeBleScanCb != null) {
+                try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
+            }
             activeBleScanCb = new BleScanCb();
             BleScanCb cb = activeBleScanCb;
             try {

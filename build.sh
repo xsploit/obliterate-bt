@@ -58,8 +58,8 @@ $AAPT2 link \
     --java "$GEN_DIR" \
     --min-sdk-version 21 \
     --target-sdk-version 28 \
-    --version-code 1 \
-    --version-name "2.0" \
+    --version-code 4 \
+    --version-name "4.4" \
     "$COMPILED_RES" 2>&1
 
 echo "  ✓ R.java + resources.ap_ generated"

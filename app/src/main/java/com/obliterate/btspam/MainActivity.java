@@ -96,10 +96,11 @@ public class MainActivity extends android.app.Activity {
 
     @Override
     protected void onDestroy() {
-        releaseWakeLock();
+        stopAll();
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
         try { unregisterReceiver(mWifiReceiver); } catch (Exception e) {}
         try { unregisterReceiver(mBtUuidReceiver); } catch (Exception e) {}
+        releaseWakeLock();
         super.onDestroy();
     }
 
@@ -745,7 +746,8 @@ public class MainActivity extends android.app.Activity {
 
     private void startScan() {
         if (!btReady()) return;
-        discoveredDevices.clear(); deviceListAdapter.clear(); deviceNameMap.clear();
+        synchronized (discoveredDevices) { discoveredDevices.clear(); }
+        deviceListAdapter.clear(); deviceNameMap.clear();
         log("🔍 BT scan — 12s window...");
         if (btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
         btAdapter.startDiscovery();
@@ -1079,6 +1081,7 @@ public class MainActivity extends android.app.Activity {
                 // Cleanup: turn off hotspot
                 m.invoke(wifiManager, cfg, false);
             } catch (Exception e) {
+                isHoneypot = false;
                 final String msg = e.getMessage();
                 mainHandler.post(new Runnable() { public void run() {
                     log("✕ Hotspot failed: " + (msg != null ? msg : "API blocked. May need system permissions."));
@@ -1167,6 +1170,25 @@ public class MainActivity extends android.app.Activity {
     //  EXPORT SCANS
     // ═══════════════════════════════════════════
 
+    private String escapeJson(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                default:
+                    if (c < 0x20) sb.append(String.format("\\u%04x", (int)c));
+                    else sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     private void exportScans() {
         final java.util.ArrayList<BluetoothDevice> devs;
         synchronized (discoveredDevices) { devs = new java.util.ArrayList<>(discoveredDevices); }
@@ -1181,7 +1203,7 @@ public class MainActivity extends android.app.Activity {
                 fw.write("  \"devices\": [\n");
                 for (int i = 0; i < devs.size(); i++) {
                     BluetoothDevice d = devs.get(i);
-                    String name = getName(d).replace("\"", "\\\"");
+                    String name = escapeJson(getName(d));
                     fw.write("    {\n");
                     fw.write("      \"name\": \"" + name + "\",\n");
                     fw.write("      \"address\": \"" + d.getAddress() + "\",\n");
@@ -1581,8 +1603,14 @@ public class MainActivity extends android.app.Activity {
 
     private void scanAllNetwork() {
         log("🔍 Full network enum...");
+        stopNetScan = false;
         scanNetbios();
-        new Thread(new Runnable(){public void run(){try{Thread.sleep(3000);}catch(Exception e){}scanSmb();try{Thread.sleep(3000);}catch(Exception e){}scanPrinters();}}).start();
+        new Thread(new Runnable(){public void run(){
+            try{Thread.sleep(3000);}catch(Exception e){}
+            if (!stopNetScan) scanSmb();
+            try{Thread.sleep(3000);}catch(Exception e){}
+            if (!stopNetScan) scanPrinters();
+        }}).start();
     }
 
     private String getSubnetPrefix() {
@@ -1949,8 +1977,12 @@ public class MainActivity extends android.app.Activity {
     }
 
     private boolean hasDevice(BluetoothDevice d) {
-        for (BluetoothDevice x : discoveredDevices) if (x.getAddress().equals(d.getAddress())) return true;
-        return false;
+        synchronized (discoveredDevices) {
+            for (BluetoothDevice x : discoveredDevices) {
+                if (x.getAddress().equals(d.getAddress())) return true;
+            }
+            return false;
+        }
     }
 
     private void addDevice(BluetoothDevice d, short rssi) {
@@ -1994,7 +2026,8 @@ public class MainActivity extends android.app.Activity {
 
     private byte[] hexToBytes(String s) {
         if (s == null || s.length() == 0) return new byte[0];
-        if (s.length() % 2 != 0) s = "0" + s; // Pad odd-length hex
+        if (!s.matches("[0-9A-Fa-f]*")) { log("✕ Invalid hex input"); return new byte[0]; }
+        if (s.length() % 2 != 0) s = "0" + s;
         int l = s.length(); byte[] d = new byte[l/2];
         try {
             for (int i = 0; i < l; i += 2) d[i/2] = (byte)((Character.digit(s.charAt(i),16)<<4) + Character.digit(s.charAt(i+1),16));

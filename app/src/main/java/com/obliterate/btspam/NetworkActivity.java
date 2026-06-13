@@ -397,6 +397,7 @@ public class NetworkActivity extends Activity {
                 }
                 m.invoke(wifiManager, cfg, false);
             } catch (Exception e) {
+                isHoneypot = false;
                 final String msg = e.getMessage();
                 mainHandler.post(new Runnable() { public void run() {
                     log("✕ Hotspot: " + (msg != null ? msg : "API blocked"));
@@ -548,8 +549,13 @@ public class NetworkActivity extends Activity {
     }
 
     private void scanAll() {
-        log("🔍 Full network enum..."); scanNetbios();
-        new Thread(new Runnable(){public void run(){try{Thread.sleep(3000);}catch(Exception e){}scanSmb();try{Thread.sleep(3000);}catch(Exception e){}scanPrinters();}}).start();
+        log("🔍 Full network enum..."); stopNetScan = false; scanNetbios();
+        new Thread(new Runnable(){public void run(){
+            try{Thread.sleep(3000);}catch(Exception e){}
+            if (!stopNetScan) scanSmb();
+            try{Thread.sleep(3000);}catch(Exception e){}
+            if (!stopNetScan) scanPrinters();
+        }}).start();
     }
 
     private String getSubnetPrefix() {

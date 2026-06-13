@@ -80,6 +80,11 @@ public class BtToolsActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        isTracking = false; isRfcommScanning = false; isBtNameTurbo = false;
+        trackTarget = null;
+        if (btAdapter != null && btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
+        if (leScanner != null && activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
+        mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
@@ -390,12 +395,12 @@ public class BtToolsActivity extends Activity {
                             }
                             try { Thread.sleep(300); } catch (InterruptedException e) { break; }
                         }
+                        isRfcommScanning = false;
                         mainHandler.post(new Runnable() { public void run() {
                             log("📡 RFCOMM scan complete (channels 1-30)");
                             updateStatus("RFCOMM DONE");
                             releaseLock();
                         }});
-                        isRfcommScanning = false;
                     }}).start();
                 }
             }).setNegativeButton("Cancel", null).show();

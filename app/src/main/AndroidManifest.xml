@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.obliterate.btspam"
     android:versionCode="4"
-    android:versionName="4.0">
+    android:versionName="4.4">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="28" />
 
@@ -29,7 +29,8 @@
     <application
         android:allowBackup="false"
         android:label="OBLITERATE"
-        android:icon="@drawable/ic_launcher">
+        android:icon="@drawable/ic_launcher"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
