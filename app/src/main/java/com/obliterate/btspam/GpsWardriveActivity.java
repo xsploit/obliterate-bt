@@ -91,6 +91,7 @@ public class GpsWardriveActivity extends Activity {
     @Override
     protected void onDestroy() {
         stopAll();
+        mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
         try { locationManager.removeUpdates(locationListener); } catch (Exception e) {}
         super.onDestroy();
