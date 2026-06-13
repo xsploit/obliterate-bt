@@ -220,6 +220,7 @@ public class GpsWardriveActivity extends Activity {
         if (!btReady()) return;
         
         // Start GPS
+        if (locationManager == null) { log("✕ No location manager"); return; }
         try {
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, locationListener);
         } catch (SecurityException e) { log("✕ GPS permission denied"); return; }
