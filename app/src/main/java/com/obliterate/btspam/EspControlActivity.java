@@ -30,6 +30,7 @@ public class EspControlActivity extends Activity {
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Thread logPoller;
+    private volatile boolean destroyed = false;
 
     // UI
     private TextView statusText, wifiText, logText;
