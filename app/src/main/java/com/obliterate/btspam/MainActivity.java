@@ -32,6 +32,8 @@ public class MainActivity extends android.app.Activity {
     private static final int REQUEST_STORAGE = 4;
     private static final long SCAN_PERIOD = 12000;
 
+    private static final int FUZZ_SELECTED_PROFILE = -1;
+    private static final int FUZZ_SELECTED_FAST_PAIR = -2;
     private static final int FUZZ_SWIFT_PAIR = 0;
     private static final int FUZZ_FAST_PAIR_CD8256 = 1;
     private static final int FUZZ_FAST_PAIR_F52494 = 2;
@@ -446,6 +448,14 @@ public class MainActivity extends android.app.Activity {
         final Spinner fuzzPresetSpinner = new Spinner(this);
         final String[] fuzzPresets = {
             "Custom (use Start/End)",
+            "🎯 Selected profile byte0: 0x00-0xFF",
+            "🎯 Selected profile byte1: 0x00-0xFF",
+            "🎯 Selected profile byte2: 0x00-0xFF",
+            "🎯 Selected profile byte3: 0x00-0xFF",
+            "🎯 Selected profile byte4: 0x00-0xFF",
+            "🎯 Selected profile byte5: 0x00-0xFF",
+            "🎯 Selected profile byte6: 0x00-0xFF",
+            "🎯 Selected profile byte7: 0x00-0xFF",
             "🪟 Swift Pair byte0: 0x00-0x02",
             "🪟 Swift Pair byte0: 0x04-0xFF",
             "🤖 Fast Pair selected seed byte0: 0x00-0xFF",
@@ -458,10 +468,20 @@ public class MainActivity extends android.app.Activity {
             "🍎 NearbyAction flag byte: 0x00",
             "🍎 NearbyAction flag byte: 0x80",
             "🍎 AirDrop selected byte: 0x00-0xFF",
+            "🍎 Handoff seed byte0: 0x00-0xFF",
+            "🍎 Tethering battery byte2: 0x00-0x64",
+            "🍎 Tethering type byte4: 0x00-0x07",
+            "📍 iBeacon major byte18: 0x00-0xFF",
+            "📍 iBeacon minor byte20: 0x00-0xFF",
+            "📍 iBeacon tx byte22: 0x80-0xFF",
+            "🔍 Find My-like type byte2: 0x00-0xFF",
             "⭐ Samsung Buds selected byte: 0x00-0xFF",
             "⭐ Samsung Watch selected byte: 0x00-0xFF",
             "💗 LoveSpouse command byte: 0x00-0xFF",
+            "💗 LoveSpouse Stop command byte: 0x00-0xFF",
+            "😴 AirSense mfr byte0: 0x00-0xFF",
             "📍 Eddystone frame byte: 0x00-0xFF",
+            "🔗 Eddystone URL scheme byte2: 0x00-0x03",
             "📤 Nearby Share first byte: 0x00-0xFF",
             "🦠 Exposure Notify first byte: 0x00-0xFF",
         };
@@ -478,12 +498,20 @@ public class MainActivity extends android.app.Activity {
             if (idx == 0) return; // Custom
             // Preset definitions: {profile, start, end, position}
             int[][] presetData = {
-                {FUZZ_SWIFT_PAIR, 0, 0, 0},                  // 0: custom (unused)
+                {FUZZ_SELECTED_PROFILE, 0, 0, 0},            // 0: custom (unused)
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 0},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 1},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 2},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 3},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 4},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 5},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 6},
+                {FUZZ_SELECTED_PROFILE, 0x00, 0xFF, 7},
                 {FUZZ_SWIFT_PAIR, 0x00, 0x02, 0},
                 {FUZZ_SWIFT_PAIR, 0x04, 0xFF, 0},
-                {FUZZ_FAST_PAIR_CD8256, 0x00, 0xFF, 0},
-                {FUZZ_FAST_PAIR_CD8256, 0x00, 0xFF, 1},
-                {FUZZ_FAST_PAIR_CD8256, 0x00, 0xFF, 2},
+                {FUZZ_SELECTED_FAST_PAIR, 0x00, 0xFF, 0},
+                {FUZZ_SELECTED_FAST_PAIR, 0x00, 0xFF, 1},
+                {FUZZ_SELECTED_FAST_PAIR, 0x00, 0xFF, 2},
                 {FUZZ_APPLE_NEARBY_ACTION, 0x01, 0x01, 0},
                 {FUZZ_APPLE_NEARBY_ACTION, 0x05, 0x05, 0},
                 {FUZZ_APPLE_NEARBY_ACTION, 0x06, 0x06, 0},
@@ -491,16 +519,32 @@ public class MainActivity extends android.app.Activity {
                 {FUZZ_APPLE_NEARBY_ACTION, 0x00, 0x00, 2},
                 {FUZZ_APPLE_NEARBY_ACTION, 0x80, 0x80, 2},
                 {FUZZ_APPLE_AIRDROP, 0x00, 0xFF, 9},
+                {FUZZ_APPLE_HANDOFF, 0x00, 0xFF, 0},
+                {FUZZ_APPLE_TETHERING, 0x00, 0x64, 2},
+                {FUZZ_APPLE_TETHERING, 0x00, 0x07, 4},
+                {FUZZ_APPLE_IBEACON, 0x00, 0xFF, 18},
+                {FUZZ_APPLE_IBEACON, 0x00, 0xFF, 20},
+                {FUZZ_APPLE_IBEACON, 0x80, 0xFF, 22},
+                {FUZZ_APPLE_FIND_MY_SEED, 0x00, 0xFF, 2},
                 {FUZZ_SAMSUNG_BUDS_SEED, 0x00, 0xFF, 0},
                 {FUZZ_SAMSUNG_WATCH_SEED, 0x00, 0xFF, 0},
                 {FUZZ_LOVESPOUSE_PLAY, 0x00, 0xFF, 11},
+                {FUZZ_LOVESPOUSE_STOP, 0x00, 0xFF, 11},
+                {FUZZ_AIRSENSE_SEED, 0x00, 0xFF, 0},
                 {FUZZ_EDDYSTONE_UID, 0x00, 0xFF, 0},
+                {FUZZ_EDDYSTONE_URL, 0x00, 0x03, 2},
                 {FUZZ_NEARBY_SHARE_SEED, 0x00, 0xFF, 0},
                 {FUZZ_EXPOSURE_NOTIFY_SEED, 0x00, 0xFF, 0},
             };
+            if (idx < 0 || idx >= presetData.length) {
+                log("✕ Preset table mismatch: " + idx);
+                return;
+            }
             int[] p = presetData[idx];
             int profile = p[0];
-            if (idx >= 3 && idx <= 5) {
+            if (profile == FUZZ_SELECTED_PROFILE) {
+                profile = fuzzProfileSpinner.getSelectedItemPosition();
+            } else if (profile == FUZZ_SELECTED_FAST_PAIR) {
                 profile = selectedFastPairProfileOrDefault(fuzzProfileSpinner.getSelectedItemPosition());
             }
             fuzzProfileSpinner.setSelection(profile);
@@ -1438,9 +1482,13 @@ public class MainActivity extends android.app.Activity {
                 }, pos, value);
             case FUZZ_APPLE_IBEACON:
                 return manufacturerFuzz(0x004C, new byte[] {
-                    0x02,0x15,0x01,0x12,0x23,0x34,0x45,0x56,0x67,0x78,
-                    (byte)0x89,(byte)0x9A,(byte)0xAB,(byte)0xBC,(byte)0xCD,
-                    (byte)0xDE,(byte)0xEF,0x00,0x01,0x00,0x02,(byte)0xC5
+                    0x02,0x15,
+                    0x01,0x12,0x23,0x34,0x45,0x56,0x67,0x78,
+                    (byte)0x89,(byte)0x9A,(byte)0xAB,(byte)0xBC,(byte)0xCD,(byte)0xDE,
+                    (byte)0xEF,0x00,
+                    0x00,0x01,
+                    0x00,0x02,
+                    (byte)0xC5
                 }, pos, value);
             case FUZZ_APPLE_FIND_MY_SEED:
                 return manufacturerFuzz(0x004C, new byte[] {
