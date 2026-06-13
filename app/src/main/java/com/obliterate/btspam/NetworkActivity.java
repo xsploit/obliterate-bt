@@ -67,6 +67,7 @@ public class NetworkActivity extends Activity {
     @Override
     protected void onDestroy() {
         stopAll();
+        mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mWifiReceiver); } catch (Exception e) {}
         super.onDestroy();
     }
