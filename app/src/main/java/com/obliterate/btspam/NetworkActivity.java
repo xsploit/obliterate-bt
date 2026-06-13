@@ -429,7 +429,7 @@ public class NetworkActivity extends Activity {
     private BroadcastReceiver mWifiReceiver = new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
             String a = i.getAction();
-            if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION.equals(a) && isWifiSpam && wifiP2pManager != null) {
+            if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION.equals(a) && isWifiSpam && wifiP2pManager != null && wifiChannel != null) {
                 try {
                     wifiP2pManager.requestPeers(wifiChannel, new WifiP2pManager.PeerListListener() {
                         public void onPeersAvailable(WifiP2pDeviceList peers) {
