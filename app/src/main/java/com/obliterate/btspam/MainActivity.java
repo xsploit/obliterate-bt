@@ -2082,6 +2082,232 @@ public class MainActivity extends android.app.Activity {
         return d;
     }
 
+    private String decodeBleAdvertisement(ScanRecord rec) {
+        if (rec == null) return "";
+        ArrayList<String> parts = new ArrayList<>();
+        android.util.SparseArray<byte[]> mfrData = rec.getManufacturerSpecificData();
+        if (mfrData != null) {
+            for (int i = 0; i < mfrData.size(); i++) {
+                String decoded = decodeManufacturerData(mfrData.keyAt(i), mfrData.valueAt(i));
+                if (decoded.length() > 0) parts.add(decoded);
+            }
+        }
+        Map<ParcelUuid, byte[]> svcData = rec.getServiceData();
+        if (svcData != null) {
+            for (Map.Entry<ParcelUuid, byte[]> entry : svcData.entrySet()) {
+                String decoded = decodeServiceData(entry.getKey(), entry.getValue());
+                if (decoded.length() > 0) parts.add(decoded);
+            }
+        }
+        if (rec.getServiceUuids() != null) {
+            for (ParcelUuid uuid : rec.getServiceUuids()) {
+                String decoded = decodeServiceOnly(uuid);
+                if (decoded.length() > 0) parts.add(decoded);
+            }
+        }
+        return joinParts(parts);
+    }
+
+    private String decodeManufacturerData(int id, byte[] data) {
+        if (data == null) return "";
+        switch (id) {
+            case 0x0006:
+                return decodeMicrosoftData(data);
+            case 0x004C:
+                return decodeAppleData(data);
+            case 0x0075:
+                return decodeSamsungData(data);
+            case 0x00FF:
+                return decodeLoveSpouseData(data);
+            case 0x038D:
+                return "AirSense/ResMed-like mfr len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(8, data.length));
+            default:
+                return "";
+        }
+    }
+
+    private String decodeMicrosoftData(byte[] data) {
+        if (data.length >= 3 && u8(data, 0) == 0x03) {
+            String name = asciiSafe(data, 3, 24);
+            String suffix = name.length() > 0 ? " name=\"" + name + "\"" : "";
+            return "Microsoft Swift Pair-like msg=0x03 flags=0x" + hex2(u8(data, 2)) + suffix;
+        }
+        return "Microsoft mfr len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(8, data.length));
+    }
+
+    private String decodeAppleData(byte[] data) {
+        if (data.length >= 23 && u8(data, 0) == 0x02 && u8(data, 1) == 0x15) {
+            int major = u16(data, 18);
+            int minor = u16(data, 20);
+            int tx = (byte)data[22];
+            return "Apple iBeacon uuid=" + formatUuid(data, 2) + " major=" + major + " minor=" + minor + " tx=" + tx;
+        }
+        if (data.length >= 2 && u8(data, 0) == 0x0F) {
+            String flags = data.length > 2 ? " flags=0x" + hex2(u8(data, 2)) : "";
+            return "Apple NearbyAction-like action=0x" + hex2(u8(data, 1)) + flags + " len=" + data.length;
+        }
+        if (data.length >= 2 && u8(data, 0) == 0x07 && u8(data, 1) == 0x19) {
+            return "Apple Find My-like seed len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(8, data.length));
+        }
+        if (data.length >= 2 && u8(data, 0) == 0x01) {
+            return "Apple Continuity-like type=0x01 subtype=0x" + hex2(u8(data, 1)) + " len=" + data.length;
+        }
+        if (data.length >= 9 && u8(data, 0) == 0x00) {
+            return "Apple AirDrop/continuity-like len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(10, data.length));
+        }
+        return "Apple mfr type=0x" + (data.length > 0 ? hex2(u8(data, 0)) : "--")
+            + " len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(8, data.length));
+    }
+
+    private String decodeSamsungData(byte[] data) {
+        if (startsWith(data, hexToBytes("42098102141503210109"))) {
+            return "Samsung Buds-like seed len=" + data.length;
+        }
+        if (startsWith(data, hexToBytes("010002000101FF000043"))) {
+            return "Samsung Watch-like seed len=" + data.length;
+        }
+        return "Samsung mfr len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(8, data.length));
+    }
+
+    private String decodeLoveSpouseData(byte[] data) {
+        if (startsWith(data, hexToBytes("FFFF006DB643CE97FE427C")) && data.length >= 14) {
+            return "LoveSpouse-like cmd=" + bytesToHex(data, 11, Math.min(3, data.length - 11));
+        }
+        return "mfr 0x00FF len=" + data.length + " head=" + bytesToHex(data, 0, Math.min(8, data.length));
+    }
+
+    private String decodeServiceData(ParcelUuid uuid, byte[] data) {
+        String shortUuid = shortUuid(uuid);
+        if ("FE2C".equals(shortUuid)) {
+            return "Fast Pair model=" + bytesToHex(data, 0, Math.min(3, data != null ? data.length : 0))
+                + " len=" + (data != null ? data.length : 0);
+        }
+        if ("FEAA".equals(shortUuid)) {
+            return decodeEddystoneData(data);
+        }
+        if ("FD6F".equals(shortUuid)) {
+            return "Exposure Notification service len=" + (data != null ? data.length : 0);
+        }
+        if ("FC8E".equals(shortUuid)) {
+            return "Nearby Share service len=" + (data != null ? data.length : 0)
+                + " head=" + bytesToHex(data, 0, Math.min(8, data != null ? data.length : 0));
+        }
+        return "";
+    }
+
+    private String decodeServiceOnly(ParcelUuid uuid) {
+        String shortUuid = shortUuid(uuid);
+        if ("FE2C".equals(shortUuid)) return "Fast Pair service";
+        if ("FEAA".equals(shortUuid)) return "Eddystone service";
+        if ("FD6F".equals(shortUuid)) return "Exposure Notification service";
+        if ("FC8E".equals(shortUuid)) return "Nearby Share service";
+        return "";
+    }
+
+    private String decodeEddystoneData(byte[] data) {
+        if (data == null || data.length == 0) return "Eddystone service empty";
+        int frame = u8(data, 0);
+        if (frame == 0x00) return "Eddystone UID tx=" + signedByte(data, 1) + " len=" + data.length;
+        if (frame == 0x10) {
+            String scheme = data.length > 2 ? eddystoneUrlScheme(u8(data, 2)) : "?";
+            return "Eddystone URL tx=" + signedByte(data, 1) + " scheme=" + scheme + " len=" + data.length;
+        }
+        if (frame == 0x20) return "Eddystone TLM len=" + data.length;
+        if (frame == 0x30) return "Eddystone EID len=" + data.length;
+        return "Eddystone frame=0x" + hex2(frame) + " len=" + data.length;
+    }
+
+    private String eddystoneUrlScheme(int code) {
+        switch (code) {
+            case 0: return "http://www.";
+            case 1: return "https://www.";
+            case 2: return "http://";
+            case 3: return "https://";
+            default: return "0x" + hex2(code);
+        }
+    }
+
+    private String joinParts(ArrayList<String> parts) {
+        if (parts == null || parts.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) sb.append("; ");
+            sb.append(parts.get(i));
+        }
+        return sb.toString();
+    }
+
+    private boolean startsWith(byte[] data, byte[] prefix) {
+        if (data == null || prefix == null || data.length < prefix.length) return false;
+        for (int i = 0; i < prefix.length; i++) {
+            if (data[i] != prefix[i]) return false;
+        }
+        return true;
+    }
+
+    private int u8(byte[] data, int index) {
+        return data != null && index >= 0 && index < data.length ? data[index] & 0xFF : 0;
+    }
+
+    private int u16(byte[] data, int index) {
+        return (u8(data, index) << 8) | u8(data, index + 1);
+    }
+
+    private int signedByte(byte[] data, int index) {
+        return data != null && index >= 0 && index < data.length ? (byte)data[index] : 0;
+    }
+
+    private String hex2(int value) {
+        String s = Integer.toHexString(value & 0xFF).toUpperCase(Locale.US);
+        return s.length() == 1 ? "0" + s : s;
+    }
+
+    private String hex4(int value) {
+        String s = Integer.toHexString(value & 0xFFFF).toUpperCase(Locale.US);
+        while (s.length() < 4) s = "0" + s;
+        return s;
+    }
+
+    private String bytesToHex(byte[] data) {
+        return bytesToHex(data, 0, data != null ? data.length : 0);
+    }
+
+    private String bytesToHex(byte[] data, int offset, int length) {
+        if (data == null || length <= 0) return "";
+        int start = Math.max(0, offset);
+        int end = Math.min(data.length, start + length);
+        StringBuilder sb = new StringBuilder();
+        for (int i = start; i < end; i++) sb.append(hex2(data[i] & 0xFF));
+        return sb.toString();
+    }
+
+    private String asciiSafe(byte[] data, int offset, int maxBytes) {
+        if (data == null || offset >= data.length || maxBytes <= 0) return "";
+        StringBuilder sb = new StringBuilder();
+        int end = Math.min(data.length, offset + maxBytes);
+        for (int i = offset; i < end; i++) {
+            int c = data[i] & 0xFF;
+            if (c >= 32 && c <= 126) sb.append((char)c);
+        }
+        return sb.toString();
+    }
+
+    private String formatUuid(byte[] data, int offset) {
+        if (data == null || data.length < offset + 16) return bytesToHex(data, offset, data != null ? data.length - offset : 0);
+        return bytesToHex(data, offset, 4) + "-"
+            + bytesToHex(data, offset + 4, 2) + "-"
+            + bytesToHex(data, offset + 6, 2) + "-"
+            + bytesToHex(data, offset + 8, 2) + "-"
+            + bytesToHex(data, offset + 10, 6);
+    }
+
+    private String shortUuid(ParcelUuid uuid) {
+        if (uuid == null) return "";
+        String s = uuid.toString().toUpperCase(Locale.US);
+        if (s.startsWith("0000") && s.length() >= 8) return s.substring(4, 8);
+        return s.length() > 8 ? s.substring(0, 8) : s;
+    }
+
     // ═══════════════════════════════════════════
     //  BLE SCAN CALLBACK
     // ═══════════════════════════════════════════
@@ -2102,9 +2328,9 @@ public class MainActivity extends android.app.Activity {
                         int id = mfrData.keyAt(j);
                         byte[] md = mfrData.get(id);
                         if (md == null) continue;
-                        sb.append(" mfr=0x").append(Integer.toHexString(id));
+                        sb.append(" mfr=0x").append(hex4(id));
                         sb.append(" data=");
-                        for (byte b : md) sb.append(String.format("%02X", b & 0xFF));
+                        sb.append(bytesToHex(md));
                     }
                 }
                 if (rec.getServiceUuids() != null) {
@@ -2114,9 +2340,13 @@ public class MainActivity extends android.app.Activity {
                 }
                 if (rec.getServiceData() != null) {
                     for (ParcelUuid u : rec.getServiceData().keySet()) {
+                        byte[] sd = rec.getServiceData().get(u);
                         sb.append(" svcdata=").append(u.toString().substring(0,8));
+                        if (sd != null) sb.append(":").append(bytesToHex(sd));
                     }
                 }
+                String decoded = decodeBleAdvertisement(rec);
+                if (decoded.length() > 0) sb.append(" decoded=[").append(decoded).append("]");
                 log(sb.toString());
             }
         }

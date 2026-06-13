@@ -24,6 +24,7 @@ import java.util.*;
 public class GpsWardriveActivity extends Activity {
 
     private static final int REQUEST_STORAGE = 4;
+    private static final int REQUEST_LOCATION = 5;
 
     // ── GPS ───────────────────────────────────
     private LocationManager locationManager;
@@ -50,6 +51,8 @@ public class GpsWardriveActivity extends Activity {
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wakeLock;
     private Runnable pendingStorageAction;
+    private volatile boolean pendingStartAfterLocationGrant = false;
+    private volatile boolean waitingForFixLogged = false;
 
     // ── Data classes ───────────────────────────
     private static class MappedDevice {
@@ -107,10 +110,15 @@ public class GpsWardriveActivity extends Activity {
 
     private LocationListener locationListener = new LocationListener() {
         public void onLocationChanged(Location loc) {
+            boolean firstFix = lastLocation == null;
             lastLocation = loc;
             lat = loc.getLatitude(); lng = loc.getLongitude();
             accuracy = loc.getAccuracy(); speed = loc.getSpeed() * 3.6f; // m/s to km/h
             if (loc.getExtras() != null) satCount = loc.getExtras().getInt("satellites", 0);
+            if (firstFix) {
+                waitingForFixLogged = false;
+                log(String.format("✓ Location fix %.6f, %.6f ±%.0fm", lat, lng, accuracy));
+            }
             if (isTracking) {
                 TrackPoint tp = new TrackPoint();
                 tp.lat = lat; tp.lng = lng; tp.speed = speed; tp.accuracy = accuracy;
@@ -229,14 +237,34 @@ public class GpsWardriveActivity extends Activity {
         
         // Start GPS
         if (locationManager == null) { log("✕ No location manager"); return; }
+        if (!hasLocationPermission()) {
+            pendingStartAfterLocationGrant = true;
+            log("📍 Requesting location permission for wardriving...");
+            requestLocationPermission();
+            return;
+        }
         try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, locationListener);
+            seedLastKnownLocation();
+            int providers = 0;
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, locationListener);
+                providers++;
+            }
+            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 5, locationListener);
+                providers++;
+            }
+            if (providers == 0) {
+                log("✕ No location provider enabled. Turn on GPS/location first.");
+                return;
+            }
         } catch (SecurityException e) { log("✕ GPS permission denied"); return; }
         
         // Start BT + BLE scan
         isScanning = true;
         setBtnOn(btnStart, "▶ SCANNING");
         log("📍 Wardriving started — GPS + BT/BLE active");
+        if (lastLocation == null) log("⏳ Waiting for location fix; devices are mapped after first fix");
         updateStatus("WARDIVING");
         acquireLock();
         
@@ -289,7 +317,14 @@ public class GpsWardriveActivity extends Activity {
     // ═══════════════════════════════════════════
 
     private void logDevice(BluetoothDevice d, short rssi, int devType) {
-        if (!isScanning || lastLocation == null) return;
+        if (!isScanning) return;
+        if (lastLocation == null) {
+            if (!waitingForFixLogged) {
+                waitingForFixLogged = true;
+                log("⏳ Device seen but no location fix yet; not mapped");
+            }
+            return;
+        }
         
         String addr = d.getAddress();
         MappedDevice existing;
@@ -381,6 +416,20 @@ public class GpsWardriveActivity extends Activity {
         return ObStorage.hasLegacyWritePermission(this);
     }
 
+    private boolean hasLocationPermission() {
+        if (Build.VERSION.SDK_INT < 23) return true;
+        return checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            || checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestLocationPermission() {
+        if (Build.VERSION.SDK_INT < 23) return;
+        requestPermissions(new String[] {
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        }, REQUEST_LOCATION);
+    }
+
     private void requestStoragePermission(Runnable onGranted) {
         pendingStorageAction = onGranted;
         ObStorage.requestLegacyWritePermission(this, REQUEST_STORAGE);
@@ -393,6 +442,21 @@ public class GpsWardriveActivity extends Activity {
             if (pendingStorageAction != null) {
                 pendingStorageAction.run();
                 pendingStorageAction = null;
+            }
+        } else if (requestCode == REQUEST_LOCATION) {
+            boolean granted = false;
+            for (int result : grantResults) {
+                if (result == PackageManager.PERMISSION_GRANTED) granted = true;
+            }
+            if (granted) {
+                log("✓ Location permission granted");
+                if (pendingStartAfterLocationGrant) {
+                    pendingStartAfterLocationGrant = false;
+                    startAll();
+                }
+            } else {
+                pendingStartAfterLocationGrant = false;
+                log("✕ Location permission denied; wardriving cannot map coordinates");
             }
         }
     }
@@ -502,6 +566,38 @@ public class GpsWardriveActivity extends Activity {
             Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
             Math.sin(dLng/2) * Math.sin(dLng/2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    private void seedLastKnownLocation() {
+        if (locationManager == null || !hasLocationPermission()) return;
+        try {
+            Location gps = null;
+            Location net = null;
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            }
+            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                net = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            }
+            Location best = betterLocation(gps, net);
+            if (best != null) {
+                lastLocation = best;
+                lat = best.getLatitude(); lng = best.getLongitude();
+                accuracy = best.getAccuracy(); speed = best.getSpeed() * 3.6f;
+                updateGpsDisplay();
+                log(String.format("📍 Last known location loaded %.6f, %.6f ±%.0fm", lat, lng, accuracy));
+            }
+        } catch (SecurityException e) {
+            log("✕ Last known location blocked by permission");
+        } catch (Exception e) {}
+    }
+
+    private Location betterLocation(Location a, Location b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        if (b.getTime() > a.getTime() + 120000) return b;
+        if (a.getTime() > b.getTime() + 120000) return a;
+        return b.getAccuracy() < a.getAccuracy() ? b : a;
     }
 
     private boolean btReady() {
