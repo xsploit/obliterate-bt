@@ -46,7 +46,6 @@ public class GpsWardriveActivity extends Activity {
     private Button btnStart, btnStop, btnExportGeo, btnExportTrack, btnBack;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wakeLock;
-    private SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.US);
 
     // ── Data classes ───────────────────────────
     private static class MappedDevice {
@@ -111,7 +110,7 @@ public class GpsWardriveActivity extends Activity {
                 TrackPoint tp = new TrackPoint();
                 tp.lat = lat; tp.lng = lng; tp.speed = speed; tp.accuracy = accuracy;
                 tp.timestamp = System.currentTimeMillis();
-                trackPoints.add(tp);
+                synchronized (trackPoints) { trackPoints.add(tp); }
             }
             mainHandler.post(new Runnable() { public void run() { updateGpsDisplay(); }});
         }
@@ -313,7 +312,7 @@ public class GpsWardriveActivity extends Activity {
         }
         
         final String entry = String.format("  📍 %s  %.5f,%.5f  %ddBm  %s",
-            md.name, md.lat, md.lng, md.rssi, sdf.format(new Date(md.timestamp)));
+            md.name, md.lat, md.lng, md.rssi, new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(md.timestamp)));
         mainHandler.post(new Runnable() { public void run() {
             log(entry);
             updateStats();
@@ -394,7 +393,7 @@ public class GpsWardriveActivity extends Activity {
                     fw.write("        \"address\": \"" + md.address + "\",\n");
                     fw.write("        \"rssi\": " + md.rssi + ",\n");
                     fw.write("        \"type\": \"" + (md.deviceType == 0 ? "classic" : "ble") + "\",\n");
-                    fw.write("        \"time\": \"" + sdf.format(new Date(md.timestamp)) + "\"\n");
+                    fw.write("        \"time\": \"" + new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(md.timestamp)) + "\"\n");
                     fw.write("      }\n");
                     fw.write("    }" + (i < devs.size() - 1 ? "," : "") + "\n");
                 }
@@ -433,7 +432,7 @@ public class GpsWardriveActivity extends Activity {
                 
                 for (TrackPoint tp : pts) {
                     fw.write(String.format("    <trkpt lat=\"%.6f\" lon=\"%.6f\">", tp.lat, tp.lng));
-                    fw.write(String.format("<ele>0</ele><time>%s</time>", sdf.format(new Date(tp.timestamp))));
+                    fw.write(String.format("<ele>0</ele><time>%s</time>", new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(tp.timestamp))));
                     fw.write(String.format("<speed>%.1f</speed></trkpt>\n", tp.speed));
                 }
                 fw.write("  </trkseg></trk>\n</gpx>\n");
