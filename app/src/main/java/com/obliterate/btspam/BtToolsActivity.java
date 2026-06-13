@@ -350,7 +350,7 @@ public class BtToolsActivity extends Activity {
 
     private void stopTracking() {
         isTracking = false; trackTarget = null;
-        btAdapter.cancelDiscovery();
+        if (btAdapter != null && btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
         resetBtn(btnTrack, "📏 TRACK RSSI");
         rssiText.setText("");
         updateStatus("IDLE");
