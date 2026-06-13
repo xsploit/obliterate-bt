@@ -9,7 +9,7 @@ GPS-tagged observations, and ESP HTTP control.
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84">
   <img alt="Language" src="https://img.shields.io/badge/language-Java-007396">
   <img alt="Custom build" src="https://img.shields.io/badge/custom_build-local_check_passed-2ea44f">
-  <img alt="Gradle" src="https://img.shields.io/badge/gradle-currently_failing-c2410c">
+  <img alt="Gradle" src="https://img.shields.io/badge/gradle-local_check_passed-2ea44f">
   <img alt="License" src="https://img.shields.io/badge/license-not_declared-lightgrey">
 </p>
 
@@ -100,9 +100,9 @@ firmware build.
       <td>The code and UI paths exist, but they should be treated as needing device-by-device testing.</td>
     </tr>
     <tr>
-      <td>Known not clean yet</td>
+      <td>Build-checked</td>
       <td>Gradle build path</td>
-      <td>The custom build works; Gradle still needs cleanup before it can be described as working.</td>
+      <td><code>gradle --no-daemon --offline :app:assembleDebug</code> completed in this workspace after Termux-specific SDK/aapt2 setup.</td>
     </tr>
   </tbody>
 </table>
@@ -125,24 +125,34 @@ firmware build.
     </tr>
     <tr>
       <td><code>gradle --offline :app:assembleDebug</code></td>
-      <td>Currently failing locally</td>
-      <td>The SDK platform is present, including <code>android-35/source.properties</code> with <code>AndroidVersion.ApiLevel=35</code> and an <code>android-35/android.jar</code>. The failure appears to be Gradle-side, not a missing SDK platform.</td>
+      <td>Working in local checks</td>
+      <td>Uses the Android Gradle Plugin with a Termux <code>aapt2</code> override in <code>gradle.properties</code>. Output APK is <code>app/build/outputs/apk/debug/app-debug.apk</code>.</td>
     </tr>
   </tbody>
 </table>
 
 Gradle context:
 
-- `app/build.gradle` declares `compileSdk 35` and `targetSdk 35`.
-- `android-sdk/platforms/android-35/source.properties` exists and reports
-  `AndroidVersion.ApiLevel=35`.
-- `android-sdk/platforms/android-35/android.jar` exists.
+- `app/build.gradle` is aligned with the custom build metadata: version `4.4`,
+  version code `4`, compile SDK `28`, and target SDK `28`.
+- `gradle.properties` sets `android.aapt2FromMavenOverride` to the Termux
+  `aapt2` binary because AGP's downloaded Linux `aapt2` does not run on
+  Android/aarch64 Termux.
+- In this workspace, the local SDK platform folders needed minimal `build.prop`
+  files before AGP would recognize the installed targets. Standard Android SDK
+  installs normally include those files.
 - The repository has Gradle wrapper metadata for Gradle `8.4`, but no checked-in
-  `gradlew` script was found locally.
-- The available system Gradle `9.5.1` failed during project evaluation.
-- Current working assumption: the remaining Gradle issue is environment,
-  daemon/cache, or SDK index related. The custom shell build remains the
-  reliable build path right now.
+  `gradlew` script was found locally. The local check used system Gradle
+  `9.5.1`.
+
+Last recorded Gradle check in this workspace:
+
+```text
+gradle --no-daemon --offline :app:assembleDebug
+BUILD SUCCESSFUL
+31 actionable tasks: 31 up-to-date
+Output APK: app/build/outputs/apk/debug/app-debug.apk
+```
 
 Last recorded custom-build check in this workspace:
 
@@ -157,13 +167,14 @@ Java 8/deprecated API warnings were emitted
 
 ## Version And SDK Reality
 
-There are currently two build configurations in the repository:
+The Gradle and custom shell build metadata are currently aligned:
 
 <table>
   <thead>
     <tr>
-      <th>Source</th>
+      <th>Build path</th>
       <th>Version</th>
+      <th>Compile SDK</th>
       <th>Target SDK</th>
       <th>Comment</th>
     </tr>
@@ -173,19 +184,21 @@ There are currently two build configurations in the repository:
       <td><code>AndroidManifest.xml</code> and <code>build.sh</code></td>
       <td><code>4.4</code> / code <code>4</code></td>
       <td><code>28</code></td>
+      <td><code>28</code></td>
       <td>This is the custom shell build path.</td>
     </tr>
     <tr>
       <td><code>app/build.gradle</code></td>
-      <td><code>2.0</code> / code <code>1</code></td>
-      <td><code>35</code></td>
-      <td>This metadata is not currently aligned with the custom build.</td>
+      <td><code>4.4</code> / code <code>4</code></td>
+      <td><code>28</code></td>
+      <td><code>28</code></td>
+      <td>This is the Android Gradle Plugin build path.</td>
     </tr>
   </tbody>
 </table>
 
-That mismatch matters. Android permission behavior can change depending on the
-target SDK and install path.
+Runtime permission behavior is still sensitive to Android version and granted
+permissions, but the repo metadata is no longer split between build paths.
 
 ## Runtime Requirements
 
@@ -237,10 +250,9 @@ setup allows it.
 
 - Runtime behavior depends on Android version, target SDK, permissions granted,
   chipset support, vendor Bluetooth/Wi-Fi behavior, and local radio conditions.
-- The custom shell build is the known-good path in this workspace; Gradle still
-  needs cleanup before it can be treated as a reliable build path. The installed
-  SDK platform itself appears to be present.
-- Build metadata is split between the manifest/build script and Gradle.
+- Both the custom shell build and Gradle debug build pass in this workspace.
+- The Gradle path is Termux-specific because it points AGP at the Termux
+  `aapt2` binary.
 - Export behavior can vary across Android storage models.
 - Some features use legacy Android APIs and reflective Bluetooth calls, so
   behavior can vary across devices.

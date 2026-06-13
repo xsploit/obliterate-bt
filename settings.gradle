@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OBLITERATE-BT"
+rootProject.name = "obliterate-bt"
 include ':app'

@@ -1,17 +1,19 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
     namespace 'com.obliterate.btspam'
-    compileSdk 35
-    
+    compileSdk 28
+
     defaultConfig {
         applicationId "com.obliterate.btspam"
         minSdk 21
-        targetSdk 35
-        versionCode 1
-        versionName "2.0"
+        targetSdk 28
+        versionCode 4
+        versionName "4.4"
     }
-    
+
     buildTypes {
         release {
             minifyEnabled false
@@ -21,7 +23,7 @@ android {
             minifyEnabled false
         }
     }
-    
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -29,5 +31,5 @@ android {
 }
 
 dependencies {
-    // No external deps — pure Android SDK Bluetooth APIs
+    // Pure Android SDK - no external libraries
 }
