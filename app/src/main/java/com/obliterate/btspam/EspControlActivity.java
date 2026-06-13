@@ -62,7 +62,9 @@ public class EspControlActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        destroyed = true;
         stopLogPoller();
+        mainHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 
@@ -300,6 +302,7 @@ public class EspControlActivity extends Activity {
                     final String resp = br.readLine();
                     br.close();
                     mainHandler.post(new Runnable() { public void run() {
+                        if (destroyed) return;
                         log("  ← " + (resp != null ? resp : "OK"));
                         updateStatus("✓ DONE");
                         // Trigger immediate log fetch
@@ -307,6 +310,7 @@ public class EspControlActivity extends Activity {
                     }});
                 } else {
                     mainHandler.post(new Runnable() { public void run() {
+                        if (destroyed) return;
                         log("  ✕ HTTP " + code);
                         updateStatus("✕ HTTP " + code);
                     }});
@@ -314,6 +318,7 @@ public class EspControlActivity extends Activity {
             } catch (Exception e) {
                 final String msg = e.getMessage();
                 mainHandler.post(new Runnable() { public void run() {
+                    if (destroyed) return;
                     log("  ✕ " + (msg != null ? msg : "Connection failed"));
                     log("  Make sure WiFi is connected to GhostNet");
                     updateStatus("✕ OFFLINE");
@@ -332,7 +337,7 @@ public class EspControlActivity extends Activity {
         stopLogPoller();
         logPoller = new Thread(new Runnable() { public void run() {
             String lastLogs = "";
-            while (!Thread.currentThread().isInterrupted()) {
+            while (!Thread.currentThread().isInterrupted() && !destroyed) {
                 try { Thread.sleep(2000); } catch (InterruptedException e) { break; }
                 try {
                     URL url = new URL("http://" + GHOST_IP + API_LOGS);
@@ -363,6 +368,7 @@ public class EspControlActivity extends Activity {
                             }
                             if (newLines.length() > 0) {
                                 mainHandler.post(new Runnable() { public void run() {
+                                    if (destroyed) return;
                                     log(newLines.toString().trim());
                                 }});
                             }
@@ -395,6 +401,7 @@ public class EspControlActivity extends Activity {
                         if (line.trim().length() > 0) {
                             final String l = line.trim();
                             mainHandler.post(new Runnable() { public void run() {
+                                if (destroyed) return;
                                 log("  " + l);
                             }});
                         }
