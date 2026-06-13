@@ -528,9 +528,12 @@ public class BtToolsActivity extends Activity {
                     if (rec != null && rec.getManufacturerSpecificData() != null) {
                         android.util.SparseArray<byte[]> mfr = rec.getManufacturerSpecificData();
                         for (int j = 0; j < mfr.size(); j++) {
-                            StringBuilder hex = new StringBuilder();
-                            for (byte b : mfr.get(mfr.keyAt(j))) hex.append(String.format("%02X", b & 0xFF));
-                            log("  📻 " + getDeviceName(fd) + " mfr=0x" + Integer.toHexString(mfr.keyAt(j)) + " data=" + hex);
+                            byte[] data = mfr.get(mfr.keyAt(j));
+                            if (data != null) {
+                                StringBuilder hex = new StringBuilder();
+                                for (byte b : data) hex.append(String.format("%02X", b & 0xFF));
+                                log("  📻 " + getDeviceName(fd) + " mfr=0x" + Integer.toHexString(mfr.keyAt(j)) + " data=" + hex);
+                            }
                         }
                     }
                 }});
