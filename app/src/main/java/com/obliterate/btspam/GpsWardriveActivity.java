@@ -7,6 +7,7 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.location.*;
+import android.net.wifi.*;
 import android.os.*;
 import android.text.method.ScrollingMovementMethod;
 import android.view.*;
@@ -17,8 +18,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
- * OBLITERATE GPS Wardriving — BT/BLE device mapping with GPS coordinates.
- * Walk or drive around, every device gets tagged with lat/lng.
+ * OBLITERATE GPS Wardriving — WiFi + BT/BLE mapping with GPS coordinates.
+ * Walk or drive around, every network/device gets tagged with lat/lng.
  * Export as GeoJSON for Google Maps / GIS tools.
  */
 public class GpsWardriveActivity extends Activity {
@@ -40,6 +41,10 @@ public class GpsWardriveActivity extends Activity {
     private final ArrayList<MappedDevice> mappedDevices = new ArrayList<>();
     private final HashMap<String, MappedDevice> deviceMap = new HashMap<>();
     private volatile boolean isScanning = false;
+    private int scanCycle = 0;
+
+    // ── WiFi ────────────────────────────────────
+    private WifiManager wifiManager;
 
     // ── Track Logging ──────────────────────────
     private final ArrayList<TrackPoint> trackPoints = new ArrayList<>();
@@ -60,7 +65,9 @@ public class GpsWardriveActivity extends Activity {
         double lat, lng;
         int rssi;
         long timestamp;
-        int deviceType; // 0=classic, 1=ble, 2=dual
+        int deviceType; // 0=classic, 1=ble, 2=dual, 3=wifi
+        int frequency;
+        String details;
     }
 
     private static class TrackPoint {
@@ -75,22 +82,25 @@ public class GpsWardriveActivity extends Activity {
 
         BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         if (bm != null) { btAdapter = bm.getAdapter(); leScanner = btAdapter != null ? btAdapter.getBluetoothLeScanner() : null; }
+        wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null) { log("⚠ No location manager"); }
+        if (wifiManager == null) { log("⚠ No WiFi manager"); }
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OB:GPS");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         buildUI();
         
-        // Register BT receiver
+        // Register scan receivers
         IntentFilter f = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(mBtReceiver, f);
+        f.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        registerReceiver(mScanReceiver, f);
         
         log("╔══════════════════════════════════╗");
         log("║  OBLITERATE GPS WARDRIVING      ║");
-        log("║  Map BT/BLE devices with GPS    ║");
+        log("║  Map WiFi + BT/BLE with GPS     ║");
         log("╚══════════════════════════════════╝");
         updateGpsDisplay();
     }
@@ -99,7 +109,7 @@ public class GpsWardriveActivity extends Activity {
     protected void onDestroy() {
         stopAll();
         mainHandler.removeCallbacksAndMessages(null);
-        try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
+        try { unregisterReceiver(mScanReceiver); } catch (Exception e) {}
         if (locationManager != null) try { locationManager.removeUpdates(locationListener); } catch (Exception e) {}
         super.onDestroy();
     }
@@ -149,7 +159,7 @@ public class GpsWardriveActivity extends Activity {
         root.setPadding(12, 48, 12, 20);
 
         root.addView(mkLabel("📍  GPS WARDRIVING", 0xFFFF2222, 22));
-        root.addView(mkLabel("[ map bt/ble devices with gps coordinates ]", 0xFF888888, 9));
+        root.addView(mkLabel("[ map wifi + bt/ble with gps coordinates ]", 0xFF888888, 9));
 
         // Status
         statusText = mkLabel("⚫ IDLE", 0xFF00FF41, 13);
@@ -162,7 +172,7 @@ public class GpsWardriveActivity extends Activity {
         root.addView(gpsText);
 
         // Stats
-        statsText = mkLabel("Devices: 0  Track: 0pts", 0xFF888888, 11);
+        statsText = mkLabel("WiFi: 0  BT/BLE: 0  Track: 0pts", 0xFF888888, 11);
         statsText.setPadding(0, 2, 0, 8);
         root.addView(statsText);
 
@@ -202,7 +212,7 @@ public class GpsWardriveActivity extends Activity {
         root.addView(r3);
 
         // Log
-        root.addView(mkLabel("DISCOVERIES:", 0xFF888888, 9));
+        root.addView(mkLabel("DISCOVERIES / SCAN STATUS:", 0xFF888888, 9));
         logText = new TextView(this);
         logText.setTextColor(0xFF00FF41); logText.setTextSize(10); logText.setTypeface(Typeface.MONOSPACE);
         logText.setBackgroundColor(0xFF0D0D0D); logText.setPadding(6, 6, 6, 6);
@@ -233,8 +243,6 @@ public class GpsWardriveActivity extends Activity {
     // ═══════════════════════════════════════════
 
     private void startAll() {
-        if (!btReady()) return;
-        
         // Start GPS
         if (locationManager == null) { log("✕ No location manager"); return; }
         if (!hasLocationPermission()) {
@@ -260,10 +268,11 @@ public class GpsWardriveActivity extends Activity {
             }
         } catch (SecurityException e) { log("✕ GPS permission denied"); return; }
         
-        // Start BT + BLE scan
+        // Start WiFi + BT/BLE scan. BT can be unavailable; WiFi wardriving should still run.
         isScanning = true;
+        scanCycle = 0;
         setBtnOn(btnStart, "▶ SCANNING");
-        log("📍 Wardriving started — GPS + BT/BLE active");
+        log("📍 Wardriving started — GPS + WiFi + BT/BLE scan cycle active");
         if (lastLocation == null) log("⏳ Waiting for location fix; devices are mapped after first fix");
         updateStatus("WARDIVING");
         acquireLock();
@@ -273,10 +282,25 @@ public class GpsWardriveActivity extends Activity {
 
     private void startScanCycle() {
         if (!isScanning) return;
-        if (btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
-        btAdapter.startDiscovery();
+        scanCycle++;
+        boolean btClassic = false;
+        boolean ble = false;
+        boolean wifi = false;
 
-        if (leScanner != null) {
+        if (btAdapter != null && btAdapter.isEnabled()) {
+            try {
+                if (btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
+                btClassic = btAdapter.startDiscovery();
+            } catch (SecurityException e) {
+                log("  ⚠ BT classic scan blocked by permission");
+            } catch (Exception e) {
+                log("  ⚠ BT classic scan failed: " + safeMsg(e));
+            }
+        } else {
+            log("  ⚠ Bluetooth off/unavailable; WiFi wardrive still running");
+        }
+
+        if (btAdapter != null && btAdapter.isEnabled() && leScanner != null) {
             if (activeBleScanCb != null) {
                 try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
             }
@@ -285,8 +309,26 @@ public class GpsWardriveActivity extends Activity {
             try {
                 leScanner.startScan(null, new ScanSettings.Builder()
                     .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), cb);
-            } catch (SecurityException e) {}
+                ble = true;
+            } catch (SecurityException e) {
+                log("  ⚠ BLE scan blocked by permission");
+            } catch (Exception e) {
+                log("  ⚠ BLE scan failed: " + safeMsg(e));
+            }
         }
+
+        if (wifiManager != null) {
+            try {
+                wifi = wifiManager.startScan();
+                if (!wifi) log("  ⚠ WiFi scan request returned false");
+            } catch (SecurityException e) {
+                log("  ⚠ WiFi scan blocked by location permission");
+            } catch (Exception e) {
+                log("  ⚠ WiFi scan failed: " + safeMsg(e));
+            }
+        }
+
+        log("  🔁 Scan cycle #" + scanCycle + " wifi=" + wifi + " bt=" + btClassic + " ble=" + ble);
 
         // Re-scan every 15 seconds
         mainHandler.postDelayed(new Runnable() { public void run() {
@@ -302,7 +344,7 @@ public class GpsWardriveActivity extends Activity {
         resetBtn(btnStart, "▶ START SCAN+GPS");
         releaseLock();
         updateStatus("IDLE");
-        log("📍 Wardriving stopped — " + mappedDevices.size() + " devices, " + trackPoints.size() + " track points");
+        log("📍 Wardriving stopped — " + mappedDevices.size() + " mapped entries, " + trackPoints.size() + " track points");
     }
 
     private void clearAll() {
@@ -317,18 +359,30 @@ public class GpsWardriveActivity extends Activity {
     // ═══════════════════════════════════════════
 
     private void logDevice(BluetoothDevice d, short rssi, int devType) {
+        if (d == null) return;
+        logMappedEntry(ObBluetooth.deviceName(d), d.getAddress(), rssi, devType, 0, "");
+    }
+
+    private void logWifiAp(android.net.wifi.ScanResult ap) {
+        if (ap == null) return;
+        String ssid = ap.SSID != null && ap.SSID.length() > 0 ? ap.SSID : "<hidden>";
+        String details = wifiBand(ap.frequency) + " ch" + wifiChannel(ap.frequency) + " " + sanitize(ap.capabilities);
+        logMappedEntry(ssid, ap.BSSID, ap.level, 3, ap.frequency, details);
+    }
+
+    private void logMappedEntry(String name, String address, int rssi, int devType, int frequency, String details) {
         if (!isScanning) return;
         if (lastLocation == null) {
             if (!waitingForFixLogged) {
                 waitingForFixLogged = true;
-                log("⏳ Device seen but no location fix yet; not mapped");
+                log("⏳ Signal seen but no location fix yet; not mapped");
             }
             return;
         }
-        
-        String addr = d.getAddress();
+        if (address == null || address.length() == 0) return;
+
         MappedDevice existing;
-        synchronized (mappedDevices) { existing = deviceMap.get(addr); }
+        synchronized (mappedDevices) { existing = deviceMap.get(address); }
         
         // Only log if new or position changed significantly
         if (existing != null) {
@@ -336,6 +390,8 @@ public class GpsWardriveActivity extends Activity {
             if (dist < 20) { // within 20m — update RSSI only
                 existing.rssi = rssi;
                 existing.timestamp = System.currentTimeMillis();
+                existing.frequency = frequency;
+                existing.details = details;
                 return;
             }
             // Remove old, add new sighting at new location
@@ -343,20 +399,23 @@ public class GpsWardriveActivity extends Activity {
         }
 
         MappedDevice md = new MappedDevice();
-        md.address = addr;
-        md.name = ObBluetooth.deviceName(d);
+        md.address = address;
+        md.name = name != null && name.length() > 0 ? name : "<unknown>";
         md.lat = lat; md.lng = lng;
         md.rssi = rssi;
         md.timestamp = System.currentTimeMillis();
         md.deviceType = devType;
+        md.frequency = frequency;
+        md.details = details != null ? details : "";
         
         synchronized (mappedDevices) {
             mappedDevices.add(md);
-            deviceMap.put(addr, md);
+            deviceMap.put(address, md);
         }
         
-        final String entry = String.format("  📍 %s  %.5f,%.5f  %ddBm  %s",
-            md.name, md.lat, md.lng, md.rssi, new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(md.timestamp)));
+        final String entry = String.format("  📍 %s %s  %.5f,%.5f  %ddBm  %s  %s",
+            typeLabel(md.deviceType), md.name, md.lat, md.lng, md.rssi,
+            new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(md.timestamp)), md.details);
         mainHandler.post(new Runnable() { public void run() {
             log(entry);
             updateStats();
@@ -364,19 +423,26 @@ public class GpsWardriveActivity extends Activity {
     }
 
     private void updateStats() {
-        final int devs; final int track;
-        synchronized (mappedDevices) { devs = mappedDevices.size(); }
+        final int wifiCount; final int btCount; final int track;
+        int wifi = 0; int bt = 0;
+        synchronized (mappedDevices) {
+            for (MappedDevice md : mappedDevices) {
+                if (md.deviceType == 3) wifi++;
+                else bt++;
+            }
+        }
+        wifiCount = wifi; btCount = bt;
         synchronized (trackPoints) { track = trackPoints.size(); }
         mainHandler.post(new Runnable() { public void run() {
-            statsText.setText(String.format("Devices: %d  Track: %dpts", devs, track));
+            statsText.setText(String.format("WiFi: %d  BT/BLE: %d  Track: %dpts", wifiCount, btCount, track));
         }});
     }
 
     // ═══════════════════════════════════════════
-    //  BROADCAST RECEIVER
+    //  SCAN RECEIVERS
     // ═══════════════════════════════════════════
 
-    private BroadcastReceiver mBtReceiver = new BroadcastReceiver() {
+    private BroadcastReceiver mScanReceiver = new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
             String a = i.getAction(); if (a == null) return;
             if (BluetoothDevice.ACTION_FOUND.equals(a)) {
@@ -388,16 +454,36 @@ public class GpsWardriveActivity extends Activity {
                         logDevice(fd, fr, 0); // classic
                     }});
                 }
+            } else if (WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(a)) {
+                handleWifiScanResults();
             }
         }
     };
+
+    private void handleWifiScanResults() {
+        if (!isScanning || wifiManager == null) return;
+        try {
+            List<android.net.wifi.ScanResult> results = wifiManager.getScanResults();
+            if (results == null) results = Collections.emptyList();
+            final int count = results.size();
+            for (android.net.wifi.ScanResult ap : results) logWifiAp(ap);
+            mainHandler.post(new Runnable() { public void run() {
+                log("  📶 WiFi scan results: " + count + " APs");
+                updateStats();
+            }});
+        } catch (SecurityException e) {
+            log("  ⚠ WiFi results blocked by location permission");
+        } catch (Exception e) {
+            log("  ⚠ WiFi results failed: " + safeMsg(e));
+        }
+    }
 
     // ═══════════════════════════════════════════
     //  BLE SCAN CALLBACK
     // ═══════════════════════════════════════════
 
     private class BleScanCb extends ScanCallback {
-        public void onScanResult(int type, ScanResult r) {
+        public void onScanResult(int type, android.bluetooth.le.ScanResult r) {
             BluetoothDevice d = r.getDevice();
             if (d != null) {
                 final BluetoothDevice fd = d; final short fr = (short)r.getRssi();
@@ -488,10 +574,15 @@ public class GpsWardriveActivity extends Activity {
                     fw.write(String.format("        \"coordinates\": [%.6f, %.6f]\n", md.lng, md.lat));
                     fw.write("      },\n");
                     fw.write("      \"properties\": {\n");
-                    fw.write("        \"name\": \"" + md.name.replace("\"", "'") + "\",\n");
-                    fw.write("        \"address\": \"" + md.address + "\",\n");
+                    fw.write("        \"name\": \"" + jsonEscape(md.name) + "\",\n");
+                    fw.write("        \"address\": \"" + jsonEscape(md.address) + "\",\n");
                     fw.write("        \"rssi\": " + md.rssi + ",\n");
-                    fw.write("        \"type\": \"" + (md.deviceType == 0 ? "classic" : "ble") + "\",\n");
+                    fw.write("        \"type\": \"" + typeName(md.deviceType) + "\",\n");
+                    if (md.deviceType == 3) {
+                        fw.write("        \"frequency\": " + md.frequency + ",\n");
+                        fw.write("        \"channel\": " + wifiChannel(md.frequency) + ",\n");
+                        fw.write("        \"details\": \"" + jsonEscape(md.details) + "\",\n");
+                    }
                     fw.write("        \"time\": \"" + new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(md.timestamp)) + "\"\n");
                     fw.write("      }\n");
                     fw.write("    }" + (i < devs.size() - 1 ? "," : "") + "\n");
@@ -557,6 +648,55 @@ public class GpsWardriveActivity extends Activity {
     // ═══════════════════════════════════════════
     //  UTILITY
     // ═══════════════════════════════════════════
+
+    private String typeName(int type) {
+        switch (type) {
+            case 0: return "classic";
+            case 1: return "ble";
+            case 2: return "dual";
+            case 3: return "wifi";
+            default: return "unknown";
+        }
+    }
+
+    private String typeLabel(int type) {
+        switch (type) {
+            case 0: return "BT";
+            case 1: return "BLE";
+            case 2: return "BT/BLE";
+            case 3: return "WiFi";
+            default: return "?";
+        }
+    }
+
+    private String wifiBand(int frequency) {
+        if (frequency >= 5925) return "6GHz";
+        if (frequency >= 4900) return "5GHz";
+        if (frequency >= 2400) return "2.4GHz";
+        return "freq" + frequency;
+    }
+
+    private int wifiChannel(int frequency) {
+        if (frequency >= 2412 && frequency <= 2472) return ((frequency - 2412) / 5) + 1;
+        if (frequency == 2484) return 14;
+        if (frequency >= 5000 && frequency <= 5895) return (frequency - 5000) / 5;
+        if (frequency >= 5955 && frequency <= 7115) return ((frequency - 5955) / 5) + 1;
+        return 0;
+    }
+
+    private String sanitize(String s) {
+        if (s == null) return "";
+        return s.replace('\n', ' ').replace('\r', ' ').trim();
+    }
+
+    private String jsonEscape(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String safeMsg(Exception e) {
+        return e != null && e.getMessage() != null ? e.getMessage() : "unknown";
+    }
 
     private double distance(double lat1, double lng1, double lat2, double lng2) {
         double R = 6371000; // Earth radius in meters
