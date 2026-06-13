@@ -19,8 +19,8 @@ import java.net.*;
 import java.util.*;
 
 /**
- * OBLITERATE Network Attacks — Probe Flood, mDNS, SSDP, Hotspot, LAN Scan, Net Enum.
- * All WiFi/network phone-native attacks in one page.
+ * OBLITERATE Network Tools — probe cycle, mDNS, SSDP, hotspot checks, LAN scan, net enum.
+ * Phone-native network tools depend on Android/OEM API support.
  */
 public class NetworkActivity extends Activity {
 
@@ -66,11 +66,11 @@ public class NetworkActivity extends Activity {
 
         buildUI();
         log("╔══════════════════════════════════╗");
-        log("║  OBLITERATE NETWORK ATTACKS     ║");
+        log("║  OBLITERATE NETWORK TOOLS       ║");
         log("║  Probe · mDNS · SSDP · Hotspot  ║");
         log("║  LAN Scan · Net Enum · WiFi Dir ║");
         log("╚══════════════════════════════════╝");
-        log("  Network attacks armed.");
+        log("  Network tools ready. Android may throttle or block some actions.");
     }
 
     @Override
@@ -106,8 +106,8 @@ public class NetworkActivity extends Activity {
         root.setBackgroundColor(0xFF0A0A0A);
         root.setPadding(12, 48, 12, 20);
 
-        root.addView(mkLabel("🌐  NETWORK ATTACKS", 0xFFFF2222, 22));
-        root.addView(mkLabel("[ probe flood · mdns · ssdp · hotspot · lan · net enum ]", 0xFF888888, 9));
+        root.addView(mkLabel("🌐  NETWORK TOOLS", 0xFFFF2222, 22));
+        root.addView(mkLabel("[ probe cycle · mdns · ssdp · hotspot · lan · net enum ]", 0xFF888888, 9));
 
         statusText = mkLabel("⚫ READY", 0xFF00FF41, 13);
         statusText.setPadding(0, 10, 0, 4);
@@ -118,9 +118,9 @@ public class NetworkActivity extends Activity {
         spoofNameInput = mkEdit("📱 iPhone 15 Pro");
         root.addView(spoofNameInput);
 
-        // Row 1: Probe Flood + BT Turbo placeholder
+        // Row 1: Probe cycle + mDNS
         LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
-        btnProbeFlood = mkBtnWide("📡 PROBE FLOOD");
+        btnProbeFlood = mkBtnWide("📡 PROBE CYCLE");
         btnProbeFlood.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { toggleProbeFlood(); }});
         r1.addView(btnProbeFlood);
         btnMdnsSpoof = mkBtnWide("🌐 mDNS SPOOF");
@@ -140,7 +140,7 @@ public class NetworkActivity extends Activity {
 
         // Row 3: WiFi Direct Spam
         LinearLayout r3 = new LinearLayout(this); r3.setOrientation(LinearLayout.HORIZONTAL);
-        btnWifiSpam = mkBtnWide("📡 WIFI DIRECT SPAM");
+        btnWifiSpam = mkBtnWide("📡 WIFI DIRECT CYCLE");
         btnWifiSpam.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { toggleWifiSpam(); }});
         r3.addView(btnWifiSpam);
         root.addView(r3);
@@ -202,7 +202,7 @@ public class NetworkActivity extends Activity {
     private void toggleProbeFlood() {
         if (isProbeFlood) {
             isProbeFlood = false;
-            resetBtn(btnProbeFlood, "📡 PROBE FLOOD");
+            resetBtn(btnProbeFlood, "📡 PROBE CYCLE");
             if (probeFloodNetId >= 0) {
                 try { wifiManager.removeNetwork(probeFloodNetId); probeFloodNetId = -1; } catch (Exception e) {}
             }
@@ -215,7 +215,7 @@ public class NetworkActivity extends Activity {
         isProbeFlood = true;
         setBtnOn(btnProbeFlood, "📡 PROBE ON");
         log("⚡ WiFi probe cycle started — Android may throttle or block configured-network probes");
-        updateStatus("PROBE FLOOD");
+        updateStatus("PROBE CYCLE");
         acquireLock();
         new Thread(new ProbeFloodRunner()).start();
     }
@@ -277,7 +277,7 @@ public class NetworkActivity extends Activity {
     private void toggleWifiSpam() {
         if (isWifiSpam) {
             isWifiSpam = false;
-            resetBtn(btnWifiSpam, "📡 WIFI DIRECT SPAM");
+            resetBtn(btnWifiSpam, "📡 WIFI DIRECT CYCLE");
             if (wifiP2pManager != null && wifiChannel != null) {
                 try { wifiP2pManager.stopPeerDiscovery(wifiChannel, null); } catch (Exception e) {}
             }
@@ -296,7 +296,7 @@ public class NetworkActivity extends Activity {
     }
 
     // ═══════════════════════════════════════════
-    //  WIFI PROBE FLOOD
+    //  WIFI PROBE CYCLE
     // ═══════════════════════════════════════════
 
     private class ProbeFloodRunner implements Runnable {
@@ -521,7 +521,7 @@ public class NetworkActivity extends Activity {
     }
 
     // ═══════════════════════════════════════════
-    //  WIFI DIRECT SPAM
+    //  WIFI DIRECT CYCLE
     // ═══════════════════════════════════════════
 
     private void startWifiSpam() {
@@ -744,11 +744,11 @@ public class NetworkActivity extends Activity {
         if (wifiP2pManager != null && wifiChannel != null) try { wifiP2pManager.stopPeerDiscovery(wifiChannel, null); } catch (Exception e) {}
         if (probeFloodNetId >= 0) { try { wifiManager.removeNetwork(probeFloodNetId); probeFloodNetId = -1; } catch (Exception e) {} }
         if (multicastLock != null) try { multicastLock.release(); } catch (Exception e) {}
-        if (btnProbeFlood != null) resetBtn(btnProbeFlood, "📡 PROBE FLOOD");
+        if (btnProbeFlood != null) resetBtn(btnProbeFlood, "📡 PROBE CYCLE");
         if (btnMdnsSpoof != null) resetBtn(btnMdnsSpoof, "🌐 mDNS SPOOF");
         if (btnSsdpSpoof != null) resetBtn(btnSsdpSpoof, "📺 SSDP SPOOF");
         if (btnHoneypot != null) resetBtn(btnHoneypot, "📶 HONEYPOT");
-        if (btnWifiSpam != null) resetBtn(btnWifiSpam, "📡 WIFI DIRECT SPAM");
+        if (btnWifiSpam != null) resetBtn(btnWifiSpam, "📡 WIFI DIRECT CYCLE");
         releaseLock();
         updateStatus("READY");
         log("🛑 ALL STOPPED");

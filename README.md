@@ -68,7 +68,7 @@ firmware build.
     <tr>
       <td>GPS wardrive</td>
       <td><code>GpsWardriveActivity.java</code></td>
-      <td>GPS-tagged Bluetooth/BLE observations, device mapping, GeoJSON export, and GPX track export.</td>
+      <td>GPS-tagged Wi-Fi AP, Bluetooth, and BLE observations, GeoJSON export with Wi-Fi frequency/channel metadata, and GPX track export.</td>
     </tr>
     <tr>
       <td>ESP bridge</td>
@@ -155,7 +155,7 @@ Last recorded Gradle check in this workspace:
 ```text
 gradle --no-daemon --offline :app:assembleDebug
 BUILD SUCCESSFUL
-31 actionable tasks: 31 up-to-date
+31 actionable tasks: 8 executed, 23 up-to-date
 Output APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -163,8 +163,8 @@ Last recorded custom-build check in this workspace:
 
 ```text
 ./build.sh completed without errors
-216 classes compiled
-APK size: about 96K in build output
+217 classes compiled
+APK size: about 104K in build output
 APK signing verified with v1/v2/v3 schemes
 v3.1/v4/SourceStamp signatures were not present
 Java 8/deprecated API warnings were emitted

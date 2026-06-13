@@ -42,6 +42,7 @@ public class BtToolsActivity extends Activity {
 
     // ── BT Name Turbo ──────────────────────────
     private volatile boolean isBtNameTurbo = false;
+    private String originalBtName = null;
 
     // ── UI ─────────────────────────────────────
     private TextView statusText, rssiText, logText;
@@ -85,6 +86,7 @@ public class BtToolsActivity extends Activity {
     protected void onDestroy() {
         isTracking = false; isRfcommScanning = false; isBtNameTurbo = false;
         trackTarget = null;
+        restoreAdapterName();
         if (btAdapter != null && btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
         if (leScanner != null && activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
         mainHandler.removeCallbacksAndMessages(null);
@@ -144,7 +146,15 @@ public class BtToolsActivity extends Activity {
         btnNameTurbo.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             if (!btReady()) return;
             if (isBtNameTurbo) { isBtNameTurbo = false; resetBtn(btnNameTurbo, "📛 NAME TURBO"); log("🛑 Name turbo stopped"); updateStatus("IDLE"); releaseLock(); }
-            else { isBtNameTurbo = true; setBtnOn(btnNameTurbo, "📛 TURBO ON"); log("⚡ BT Name Turbo — 100ms cycling"); updateStatus("NAME TURBO"); acquireLock(); new Thread(new NameTurboRunner()).start(); }
+            else {
+                originalBtName = getAdapterName();
+                isBtNameTurbo = true;
+                setBtnOn(btnNameTurbo, "📛 TURBO ON");
+                log("⚡ BT Name Turbo — 100ms cycling");
+                updateStatus("NAME TURBO");
+                acquireLock();
+                new Thread(new NameTurboRunner()).start();
+            }
         }});
         r2.addView(btnNameTurbo);
         root.addView(r2);
@@ -201,8 +211,14 @@ public class BtToolsActivity extends Activity {
         discoveredDevices.clear(); deviceListAdapter.clear(); deviceRssiMap.clear();
         log("🔍 Scanning BT + BLE — 15s...");
         updateStatus("SCANNING");
-        if (btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
-        btAdapter.startDiscovery();
+        try {
+            if (btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
+            if (!btAdapter.startDiscovery()) log("  ⚠ Classic discovery request returned false");
+        } catch (SecurityException e) {
+            log("  ✕ Classic discovery blocked by Bluetooth permission");
+        } catch (Exception e) {
+            log("  ✕ Classic discovery failed: " + safeMsg(e));
+        }
 
         if (leScanner != null) {
             if (activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
@@ -214,11 +230,15 @@ public class BtToolsActivity extends Activity {
                 mainHandler.postDelayed(new Runnable() { public void run() {
                     try { leScanner.stopScan(cb); } catch (Exception e) {}
                 }}, 15000);
-            } catch (SecurityException e) {}
+            } catch (SecurityException e) {
+                log("  ✕ BLE scan blocked by Bluetooth/location permission");
+            } catch (Exception e) {
+                log("  ✕ BLE scan failed: " + safeMsg(e));
+            }
         }
 
         mainHandler.postDelayed(new Runnable() { public void run() {
-            btAdapter.cancelDiscovery();
+            try { btAdapter.cancelDiscovery(); } catch (Exception e) {}
             updateStatus("DONE — " + discoveredDevices.size() + " devices");
         }}, 15000);
     }
@@ -329,11 +349,11 @@ public class BtToolsActivity extends Activity {
         if (rssiHistory.size() > 100) rssiHistory.remove(0);
         
         // Calc stats
-        int sum = 0; rssiMin = 0; rssiMax = -100;
+        int sum = 0; rssiMin = Integer.MAX_VALUE; rssiMax = Integer.MIN_VALUE;
         for (int r : rssiHistory) {
             sum += r;
-            if (r > rssiMin) rssiMin = r;
-            if (r < rssiMax) rssiMax = r;
+            if (r < rssiMin) rssiMin = r;
+            if (r > rssiMax) rssiMax = r;
         }
         rssiAvg = sum / rssiHistory.size();
         
@@ -365,7 +385,7 @@ public class BtToolsActivity extends Activity {
         releaseLock();
         log("📏 Tracking stopped — " + rssiHistory.size() + " samples");
         if (rssiHistory.size() > 0) {
-            log("  Min: " + rssiMax + "dBm  Max: " + rssiMin + "dBm  Avg: " + rssiAvg + "dBm");
+            log("  Min: " + rssiMin + "dBm  Max: " + rssiMax + "dBm  Avg: " + rssiAvg + "dBm");
         }
     }
 
@@ -447,6 +467,7 @@ public class BtToolsActivity extends Activity {
                 try { Thread.sleep(100); } catch (InterruptedException e) { break; }
             }
             final int changed = count;
+            restoreAdapterName();
             mainHandler.post(new Runnable() { public void run() {
                 log("📛 Name turbo stopped — " + changed + " changes");
                 updateStatus("IDLE");
@@ -605,6 +626,20 @@ public class BtToolsActivity extends Activity {
 
     private String getDeviceName(BluetoothDevice d) {
         return ObBluetooth.deviceName(d);
+    }
+
+    private String getAdapterName() {
+        try { return btAdapter != null ? btAdapter.getName() : null; } catch (Exception e) { return null; }
+    }
+
+    private void restoreAdapterName() {
+        if (btAdapter == null || originalBtName == null || originalBtName.length() == 0) return;
+        try { btAdapter.setName(originalBtName); } catch (Exception e) {}
+        originalBtName = null;
+    }
+
+    private String safeMsg(Exception e) {
+        return e != null && e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     private String getDeviceTypeName(int major) {

@@ -152,7 +152,7 @@ public class MainActivity extends android.app.Activity {
         requestFullScreen();
         log("+====================================+");
         log("|   OBLITERATE v3.0                 |");
-        log("|   BT + WIFI + NETWORK ATTACKS     |");
+        log("|   BT + WIFI + NETWORK TOOLS       |");
         log("+====================================+");
         log("  Armed. Pick a weapon.");
     }
@@ -209,7 +209,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ═══════════════════════════════════════════
-    //  INIT — PHONE NATIVE ATTACKS
+    //  INIT — PHONE NATIVE TOOLS
     // ═══════════════════════════════════════════
 
     private void initPhoneAttacks() {
@@ -241,7 +241,7 @@ public class MainActivity extends android.app.Activity {
 
         // ── Title ──
         content.addView(mkLabel("☠  OBLITERATE  v3.0", 0xFFFF2222, 22));
-        content.addView(mkLabel("[ bt + wifi direct assault ]", 0xFF888888, 11));
+        content.addView(mkLabel("[ bt + wifi direct lab tools ]", 0xFF888888, 11));
 
         // BT Tools button
         Button btnBtTools = mkBtn("🔍  BT TOOLS");
@@ -259,8 +259,8 @@ public class MainActivity extends android.app.Activity {
         }});
         content.addView(btnGps);
 
-        // Network Attacks button
-        Button btnNetwork = mkBtn("🌐  NETWORK ATTACKS");
+        // Network tools button
+        Button btnNetwork = mkBtn("🌐  NETWORK TOOLS");
         btnNetwork.setTextColor(0xFF00BFFF);
         btnNetwork.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             startActivity(new android.content.Intent(MainActivity.this, NetworkActivity.class));
@@ -294,8 +294,8 @@ public class MainActivity extends android.app.Activity {
         spoofNameInput.setTextSize(12);
         content.addView(spoofNameInput);
 
-        // ── Targeted BLE Spam (Flipper-style dropdown) ──
-        content.addView(mkLabel("🎯 TARGETED BLE SPAM:", 0xFFFFCC00, 10));
+        // ── Targeted BLE modes (Flipper-style dropdown) ──
+        content.addView(mkLabel("🎯 TARGETED BLE MODES:", 0xFFFFCC00, 10));
         
         final String[] bleModes = {
             "🪟 Swift Pair (Windows)",
@@ -752,7 +752,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ═══════════════════════════════════════════
-    //  PHONE NATIVE — WIFI PROBE FLOOD
+    //  PHONE NATIVE — WIFI PROBE CYCLE
     // ═══════════════════════════════════════════
 
     private class ProbeFloodRunner implements Runnable {
@@ -1258,13 +1258,13 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ═══════════════════════════════════════════
-    //  WIFI DIRECT SPAM
+    //  WIFI DIRECT CYCLE
     // ═══════════════════════════════════════════
 
     private void toggleWifiSpam() {
         if (isWifiSpam) {
             isWifiSpam = false;
-            resetBtn(btnWifiSpam, "📡 WIFI DIRECT SPAM");
+            resetBtn(btnWifiSpam, "📡 WIFI DIRECT CYCLE");
             if (wifiP2pManager != null && wifiChannel != null)
                 try { wifiP2pManager.stopPeerDiscovery(wifiChannel, null); } catch (Exception e) {}
             log("🛑 WiFi Direct spam stopped");
@@ -1294,7 +1294,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ═══════════════════════════════════════════
-    //  TARGETED BLE SPAM (Flipper-style) — dropdown
+    //  TARGETED BLE MODES (Flipper-style) — dropdown
     // ═══════════════════════════════════════════
 
     private void fireTargetedBle() {
@@ -1780,11 +1780,11 @@ public class MainActivity extends android.app.Activity {
         resetBtn(btnPairSpam, "🔗 PAIR SPAM");
         resetBtn(btnConnSpam, "🔄 CONN FLOOD");
         resetBtn(btnBleSpam, "📶 BLE SPAM");
-        resetBtn(btnWifiSpam, "📡 WIFI DIRECT SPAM");
+        resetBtn(btnWifiSpam, "📡 WIFI DIRECT CYCLE");
         resetBtn(btnBleFire, "🔥 FIRE");
         resetBtn(btnBleCycle, "🔄 CYCLE ALL 27 MODES");
         releaseWakeLock(); updateStatus("READY");
-        log("🛑 ALL ATTACKS STOPPED");
+        log("🛑 ALL TOOLS STOPPED");
     }
 
     // ═══════════════════════════════════════════
