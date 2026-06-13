@@ -175,6 +175,14 @@ public class MainActivity extends android.app.Activity {
         content.addView(mkLabel("☠  OBLITERATE  v3.0", 0xFFFF2222, 22));
         content.addView(mkLabel("[ bt + wifi direct assault ]", 0xFF888888, 11));
 
+        // BT Tools button
+        Button btnBtTools = mkBtn("🔍  BT TOOLS");
+        btnBtTools.setTextColor(0xFF00BFFF);
+        btnBtTools.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            startActivity(new android.content.Intent(MainActivity.this, BtToolsActivity.class));
+        }});
+        content.addView(btnBtTools);
+
         // ESP32 bridge button
         Button btnEspBridge = mkBtn("📡  ESP32 CONTROL PANEL");
         btnEspBridge.setTextColor(0xFF00BFFF);

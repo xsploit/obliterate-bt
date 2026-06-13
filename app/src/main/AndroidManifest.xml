@@ -50,5 +50,11 @@
             android:exported="false"
             android:configChanges="orientation|screenSize" />
 
+        <activity
+            android:name=".BtToolsActivity"
+            android:label="BT Tools"
+            android:exported="false"
+            android:configChanges="orientation|screenSize" />
+
     </application>
 </manifest>
