@@ -86,7 +86,7 @@ public class BtToolsActivity extends Activity {
         if (leScanner != null && activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
         mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
-        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        if (wakeLock != null) wakeLock.release();
         super.onDestroy();
     }
 
@@ -664,11 +664,11 @@ public class BtToolsActivity extends Activity {
     }
 
     private void acquireLock() {
-        if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10 * 60 * 1000L);
+        if (wakeLock != null) wakeLock.acquire(10 * 60 * 1000L);
     }
 
     private void releaseLock() {
-        if (wakeLock != null && wakeLock.isHeld() && !isTracking && !isRfcommScanning && !isBtNameTurbo)
+        if (wakeLock != null && !isTracking && !isRfcommScanning && !isBtNameTurbo)
             wakeLock.release();
     }
 

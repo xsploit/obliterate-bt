@@ -2012,14 +2012,14 @@ public class MainActivity extends android.app.Activity {
     }
 
     private void acquireWakeLock() {
-        if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10 * 60 * 1000L);
+        if (wakeLock != null) wakeLock.acquire(10 * 60 * 1000L);
     }
 
     private void releaseWakeLock() {
         if (!isDiscSpam && !isPairSpam && !isConnSpam && !isBleSpam && !isWifiSpam
             && !isBleTargetActive && !isCycling && !isProbeFlood && !isBtNameTurbo
             && !isMdnsSpoof && !isSsdpSpoof && !isHoneypot)
-            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+            if (wakeLock != null) wakeLock.release();
     }
 
     private void updateStatus(String s) {

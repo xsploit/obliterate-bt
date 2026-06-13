@@ -483,9 +483,9 @@ public class GpsWardriveActivity extends Activity {
         }});
     }
 
-    private void acquireLock() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10 * 60 * 1000L); }
+    private void acquireLock() { if (wakeLock != null) wakeLock.acquire(10 * 60 * 1000L); }
     private void releaseLock() {
-        if (!isScanning && !isTracking && wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        if (!isScanning && !isTracking && wakeLock != null) wakeLock.release();
     }
     private void setBtnOn(Button b, String t) { b.setText(t); b.setTextColor(0xFF00FF41); }
     private void resetBtn(Button b, String t) { b.setText(t); b.setTextColor(0xFFFF2222); }
