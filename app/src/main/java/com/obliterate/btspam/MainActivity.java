@@ -499,11 +499,15 @@ public class MainActivity extends android.app.Activity {
                 {FUZZ_EXPOSURE_NOTIFY_SEED, 0x00, 0xFF, 0},
             };
             int[] p = presetData[idx];
-            fuzzProfileSpinner.setSelection(p[0]);
+            int profile = p[0];
+            if (idx >= 3 && idx <= 5) {
+                profile = selectedFastPairProfileOrDefault(fuzzProfileSpinner.getSelectedItemPosition());
+            }
+            fuzzProfileSpinner.setSelection(profile);
             fuzzStart.setText(String.valueOf(p[1]));
             fuzzEnd.setText(String.valueOf(p[2]));
             fuzzPos.setText(String.valueOf(p[3]));
-            log("📋 Preset: " + fuzzPresets[idx] + " → " + FUZZ_PROFILE_LABELS[p[0]]
+            log("📋 Preset: " + fuzzPresets[idx] + " → " + FUZZ_PROFILE_LABELS[profile]
                 + " byte " + p[3] + " = " + p[1] + "→" + p[2]);
         }});
         btnPreset.setLayoutParams(btnParams);
@@ -561,12 +565,6 @@ public class MainActivity extends android.app.Activity {
             isFuzzActive = false; stopFuzzAdvertising(); resetBtn(btnFuzzRun, "🔬 RUN FUZZ");
             log("🛑 Fuzz stopped"); releaseWakeLock();
         }});
-
-        // ── BLE payload input ──
-        content.addView(mkLabel("BLE PAYLOAD (hex):", 0xFF888888, 10));
-        customPayloadInput = mkEdit("020106FFFFFFFF");
-        customPayloadInput.setTextSize(11);
-        content.addView(customPayloadInput);
 
         // ── Stop All ──
         btnStopAll = mkBtn("🛑  STOP ALL");
@@ -1187,7 +1185,10 @@ public class MainActivity extends android.app.Activity {
         if (adv == null) { log("✕ No BLE advertiser"); toggleBleSpam(); return; }
         String name = spoofNameInput.getText().toString();
         try {
-            byte[] payload = hexToBytes(customPayloadInput.getText().toString().replaceAll("\\s", ""));
+            String payloadHex = customPayloadInput != null
+                ? customPayloadInput.getText().toString().replaceAll("\\s", "")
+                : "020106FFFFFFFF";
+            byte[] payload = hexToBytes(payloadHex);
             AdvertiseData d = new AdvertiseData.Builder().setIncludeDeviceName(false)
                 .addManufacturerData(0xFFFF, payload).addServiceUuid(
                     ParcelUuid.fromString("0000180A-0000-1000-8000-00805F9B34FB")).build();
@@ -1482,6 +1483,13 @@ public class MainActivity extends android.app.Activity {
             default:
                 return manufacturerFuzz(0x0006, swiftPairPayload(name), pos, value);
         }
+    }
+
+    private int selectedFastPairProfileOrDefault(int selectedProfile) {
+        if (selectedProfile >= FUZZ_FAST_PAIR_CD8256 && selectedProfile <= FUZZ_FAST_PAIR_92BBBD) {
+            return selectedProfile;
+        }
+        return FUZZ_FAST_PAIR_CD8256;
     }
 
     private AdvertiseData fastPairFuzz(String modelHex, int pos, int value) {

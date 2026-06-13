@@ -43,7 +43,7 @@ firmware build.
     <tr>
       <td>Main panel</td>
       <td><code>MainActivity.java</code></td>
-      <td>Launcher UI, targeted BLE advertisement modes, protocol/profile-aware BLE fuzzer controls, custom BLE payload input, stop/log controls, and shortcuts into the secondary modules.</td>
+      <td>Launcher UI, targeted BLE advertisement modes, protocol/profile-aware BLE fuzzer controls, stop/log controls, and shortcuts into the secondary modules.</td>
     </tr>
     <tr>
       <td>BLE modes</td>
