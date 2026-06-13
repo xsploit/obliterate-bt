@@ -97,6 +97,7 @@ public class MainActivity extends android.app.Activity {
     @Override
     protected void onDestroy() {
         stopAll();
+        mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
         try { unregisterReceiver(mWifiReceiver); } catch (Exception e) {}
         try { unregisterReceiver(mBtUuidReceiver); } catch (Exception e) {}
@@ -1267,7 +1268,7 @@ public class MainActivity extends android.app.Activity {
                         d.getClass().getMethod("cancelBondProcess").invoke(d);
                 } catch (Exception e) { log("  ✕ " + n); }
             }
-            if (isPairSpam) { log("  ↻ Looping..."); mainHandler.postDelayed(new PairSpamRunner(), 2000); }
+            if (isPairSpam) { log("  ↻ Looping..."); try { Thread.sleep(2000); } catch (InterruptedException e) { return; } run(); }
         }
     }
 
@@ -1295,7 +1296,7 @@ public class MainActivity extends android.app.Activity {
                 finally { if (s != null) try { s.close(); } catch (Exception ex) {} }
                 try { Thread.sleep(400); } catch (InterruptedException e) { break; }
             }
-            if (isConnSpam) { log("  ↻ Looping..."); mainHandler.postDelayed(new ConnFloodRunner(), 1000); }
+            if (isConnSpam) { log("  ↻ Looping..."); try { Thread.sleep(1000); } catch (InterruptedException e) { return; } run(); }
         }
     }
 

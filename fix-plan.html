@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBLITERATE Fix Plan — Codex Review</title>
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--text:#e0e0e0;--muted:#666;--high:#ff4444;--med:#ffaa00;--low:#44ff44;--done:#00cc44;--accent:#ff1a1a;--code:#00ff41}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:13px/1.5 'Courier New',monospace;padding:20px}
+h1{color:var(--accent);font-size:22px;margin-bottom:4px}
+h2{color:var(--med);font-size:16px;margin:20px 0 10px;border-bottom:1px solid #222;padding-bottom:4px}
+.meta{color:var(--muted);font-size:11px;margin-bottom:20px}
+.file-section{margin:16px 0}
+.file-name{color:var(--accent);font-size:14px;margin:12px 0 6px;background:#111;padding:6px 12px;border-radius:3px;display:inline-block}
+.item{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;margin:2px 0;border-radius:3px;transition:background .2s}
+.item:hover{background:#151515}
+.item input[type=checkbox]{margin-top:3px;accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
+.item input:checked+label{color:var(--done);text-decoration:line-through}
+.item label{cursor:pointer;flex:1}
+.sev{display:inline-block;padding:1px 6px;border-radius:2px;font-size:10px;font-weight:bold;margin-right:6px;min-width:42px;text-align:center}
+.sev.high{background:rgba(255,68,68,.2);color:var(--high)}
+.sev.med{background:rgba(255,170,0,.2);color:var(--med)}
+.sev.low{background:rgba(68,255,68,.2);color:var(--low)}
+.loc{color:var(--code);font-size:10px}
+.count{color:var(--muted);font-size:11px;margin-left:8px}
+.progress{background:#111;padding:12px;border-radius:4px;margin:16px 0;text-align:center}
+.progress .bar{height:4px;background:#222;border-radius:2px;margin-top:8px;overflow:hidden}
+.progress .fill{height:100%;background:var(--done);transition:width .3s}
+.summary{display:flex;gap:20px;flex-wrap:wrap}
+.summary .stat{background:#111;padding:10px 16px;border-radius:4px;text-align:center}
+.stat .num{font-size:28px;font-weight:bold}
+.stat .label{font-size:10px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<h1>☠ OBLITERATE Codex Review — Fix Plan</h1>
+<div class="meta">174,906 tokens · 5 files reviewed · 30+ issues found · <span id="doneCount">0</span>/<span id="totalCount">0</span> fixed</div>
+
+<div class="progress">
+  <span style="color:var(--med)">PROGRESS</span>
+  <div class="bar"><div class="fill" id="progressBar" style="width:0%"></div></div>
+</div>
+
+<div class="summary">
+  <div class="stat"><div class="num" style="color:var(--high)" id="highCount">13</div><div class="label">HIGH</div></div>
+  <div class="stat"><div class="num" style="color:var(--med)" id="medCount">12</div><div class="label">MEDIUM</div></div>
+  <div class="stat"><div class="num" style="color:var(--low)" id="lowCount">10</div><div class="label">RESOURCE LEAKS</div></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>📄 MainActivity.java</h2>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="file-section">
+
+<div class="file-name">High — Lifecycle & Threading</div>
+
+<div class="item">
+  <input type="checkbox" id="m1" onchange="updateProgress()">
+  <label for="m1"><span class="sev high">HIGH</span> <span class="loc">L99</span> onDestroy() missing mainHandler.removeCallbacksAndMessages(null)</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m2" onchange="updateProgress()">
+  <label for="m2"><span class="sev high">HIGH</span> <span class="loc">L1270</span> PairSpamRunner reposted to main thread — BT work blocks UI</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m3" onchange="updateProgress()">
+  <label for="m3"><span class="sev high">HIGH</span> <span class="loc">L1298</span> ConnFloodRunner reposted to main thread — socket work blocks UI</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m4" onchange="updateProgress()">
+  <label for="m4"><span class="sev high">HIGH</span> <span class="loc">L613</span> BLE fuzzer anonymous AdvertiseCallback never tracked/stopped</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m5" onchange="updateProgress()">
+  <label for="m5"><span class="sev high">HIGH</span> <span class="loc">L1329</span> BLE ad spam: stopAll() doesn't stop active advertiser</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m6" onchange="updateProgress()">
+  <label for="m6"><span class="sev high">HIGH</span> <span class="loc">L1515</span> Targeted BLE: stopAll() doesn't stop BleFireCb</label>
+</div>
+
+<div class="file-name">Medium — Thread Safety</div>
+
+<div class="item">
+  <input type="checkbox" id="m7" onchange="updateProgress()">
+  <label for="m7"><span class="sev med">MEDIUM</span> <span class="loc">L827,835,855</span> probeFloodNetId not volatile — race with stop path</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m8" onchange="updateProgress()">
+  <label for="m8"><span class="sev med">MEDIUM</span> <span class="loc">L910</span> BtNameTurboRunner reads spoofNameInput.getText() off UI thread</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m9" onchange="updateProgress()">
+  <label for="m9"><span class="sev med">MEDIUM</span> <span class="loc">L1608</span> Background scanAll reads subnetInput via getSubnetPrefix() off UI thread</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m10" onchange="updateProgress()">
+  <label for="m10"><span class="sev med">MEDIUM</span> <span class="loc">L1536,1559,1585,1606</span> All scans share one stopNetScan — resetting one cancels another</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m11" onchange="updateProgress()">
+  <label for="m11"><span class="sev med">MEDIUM</span> <span class="loc">L592</span> isBleTargetActive shared between fuzzer and targeted BLE</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m12" onchange="updateProgress()">
+  <label for="m12"><span class="sev med">MEDIUM</span> <span class="loc">L2001,2005</span> WakeLock.isHeld() check-then-act race</label>
+</div>
+
+<div class="file-name">Missing Null Checks</div>
+
+<div class="item">
+  <input type="checkbox" id="m13" onchange="updateProgress()">
+  <label for="m13"><span class="sev med">MEDIUM</span> <span class="loc">L2059</span> Manufacturer data byte[] not null-checked before iterating</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m14" onchange="updateProgress()">
+  <label for="m14"><span class="sev med">MEDIUM</span> <span class="loc">L284</span> Probe flood starts without checking wifiManager</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m15" onchange="updateProgress()">
+  <label for="m15"><span class="sev med">MEDIUM</span> <span class="loc">L344</span> Honeypot starts without checking wifiManager</label>
+</div>
+
+<div class="file-name">Resource Leaks</div>
+
+<div class="item">
+  <input type="checkbox" id="m16" onchange="updateProgress()">
+  <label for="m16"><span class="sev low">LEAK</span> <span class="loc">L1851</span> AlertDialog not dismissed on destroy</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m17" onchange="updateProgress()">
+  <label for="m17"><span class="sev low">LEAK</span> <span class="loc">L1056,1070</span> ARP BufferedReader not closed on exception</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m18" onchange="updateProgress()">
+  <label for="m18"><span class="sev low">LEAK</span> <span class="loc">L1539,1550</span> DatagramSocket leak on exception in NetBIOS scan</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="m19" onchange="updateProgress()">
+  <label for="m19"><span class="sev low">LEAK</span> <span class="loc">L1565,1576</span> SMB Socket leak on exception</label>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>📄 BtToolsActivity.java</h2>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="file-section">
+
+<div class="file-name">High — Lifecycle</div>
+
+<div class="item">
+  <input type="checkbox" id="b1" onchange="updateProgress()">
+  <label for="b1"><span class="sev high">HIGH</span> <span class="loc">L381</span> RFCOMM scan thread can block in connect() after onDestroy()</label>
+</div>
+
+<div class="file-name">Medium — Thread Safety</div>
+
+<div class="item">
+  <input type="checkbox" id="b2" onchange="updateProgress()">
+  <label for="b2"><span class="sev med">MEDIUM</span> <span class="loc">L204</span> New scan overwrites activeBleScanCb without stopping previous</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="b3" onchange="updateProgress()">
+  <label for="b3"><span class="sev med">MEDIUM</span> <span class="loc">L377</span> RFCOMM scan multi-start: shared isRfcommScanning flag</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="b4" onchange="updateProgress()">
+  <label for="b4"><span class="sev med">MEDIUM</span> <span class="loc">L663,667</span> WakeLock check-then-act race</label>
+</div>
+
+<div class="file-name">Missing Null Checks</div>
+
+<div class="item">
+  <input type="checkbox" id="b5" onchange="updateProgress()">
+  <label for="b5"><span class="sev med">MEDIUM</span> <span class="loc">L352</span> stopTracking() calls btAdapter.cancelDiscovery() without null check</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="b6" onchange="updateProgress()">
+  <label for="b6"><span class="sev med">MEDIUM</span> <span class="loc">L531</span> mfr.get() byte[] not null-checked before iterating</label>
+</div>
+
+<div class="file-name">Resource Leaks</div>
+
+<div class="item">
+  <input type="checkbox" id="b7" onchange="updateProgress()">
+  <label for="b7"><span class="sev low">LEAK</span> <span class="loc">L247,302,406</span> AlertDialogs not dismissed on destroy</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="b8" onchange="updateProgress()">
+  <label for="b8"><span class="sev low">LEAK</span> <span class="loc">L386</span> BluetoothSocket not closed if connect() throws</label>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>📄 GpsWardriveActivity.java</h2>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="file-section">
+
+<div class="file-name">High — Lifecycle</div>
+
+<div class="item">
+  <input type="checkbox" id="g1" onchange="updateProgress()">
+  <label for="g1"><span class="sev high">HIGH</span> <span class="loc">L93</span> onDestroy() never removes pending mainHandler callbacks (scan-cycle @ L254)</label>
+</div>
+
+<div class="file-name">Medium — Thread Safety</div>
+
+<div class="item">
+  <input type="checkbox" id="g2" onchange="updateProgress()">
+  <label for="g2"><span class="sev med">MEDIUM</span> <span class="loc">L36,37,41</span> mappedDevices/deviceMap/trackPoints unsynchronized with export threads</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="g3" onchange="updateProgress()">
+  <label for="g3"><span class="sev med">MEDIUM</span> <span class="loc">L49</span> SimpleDateFormat shared across threads — not thread-safe</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="g4" onchange="updateProgress()">
+  <label for="g4"><span class="sev med">MEDIUM</span> <span class="loc">L481,483</span> WakeLock check-then-act race</label>
+</div>
+
+<div class="file-name">Missing Null Checks</div>
+
+<div class="item">
+  <input type="checkbox" id="g5" onchange="updateProgress()">
+  <label for="g5"><span class="sev med">MEDIUM</span> <span class="loc">L223</span> locationManager.requestLocationUpdates() no null check</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="g6" onchange="updateProgress()">
+  <label for="g6"><span class="sev med">MEDIUM</span> <span class="loc">L95,263</span> locationManager.removeUpdates() may dereference null</label>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>📄 NetworkActivity.java</h2>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="file-section">
+
+<div class="file-name">High — Lifecycle</div>
+
+<div class="item">
+  <input type="checkbox" id="n1" onchange="updateProgress()">
+  <label for="n1"><span class="sev high">HIGH</span> <span class="loc">L69</span> onDestroy() missing mainHandler.removeCallbacksAndMessages(null)</label>
+</div>
+
+<div class="file-name">Medium — Thread Safety</div>
+
+<div class="item">
+  <input type="checkbox" id="n2" onchange="updateProgress()">
+  <label for="n2"><span class="sev med">MEDIUM</span> <span class="loc">L187,233,237,251,602</span> probeFloodNetId not volatile — race with stop</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="n3" onchange="updateProgress()">
+  <label for="n3"><span class="sev med">MEDIUM</span> <span class="loc">L553</span> Background scanAll reads subnetInput off UI thread</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="n4" onchange="updateProgress()">
+  <label for="n4"><span class="sev med">MEDIUM</span> <span class="loc">L431</span> wifiChannel null not checked before requestPeers()</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="n5" onchange="updateProgress()">
+  <label for="n5"><span class="sev med">MEDIUM</span> <span class="loc">L488,511,534,552</span> Shared stopNetScan across all scan types</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="n6" onchange="updateProgress()">
+  <label for="n6"><span class="sev med">MEDIUM</span> <span class="loc">L653,657</span> WakeLock check-then-act race</label>
+</div>
+
+<div class="file-name">Resource Leaks</div>
+
+<div class="item">
+  <input type="checkbox" id="n7" onchange="updateProgress()">
+  <label for="n7"><span class="sev low">LEAK</span> <span class="loc">L375,388</span> ARP BufferedReader not closed on exception</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="n8" onchange="updateProgress()">
+  <label for="n8"><span class="sev low">LEAK</span> <span class="loc">L494,503</span> DatagramSocket leak in NetBIOS scan</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="n9" onchange="updateProgress()">
+  <label for="n9"><span class="sev low">LEAK</span> <span class="loc">L517,526</span> SMB Socket leak on exception</label>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>📄 EspControlActivity.java</h2>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="file-section">
+
+<div class="file-name">High — Lifecycle</div>
+
+<div class="item">
+  <input type="checkbox" id="e1" onchange="updateProgress()">
+  <label for="e1"><span class="sev high">HIGH</span> <span class="loc">L64</span> onDestroy() only stops logPoller; handler posts + threads still retain Activity</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="e2" onchange="updateProgress()">
+  <label for="e2"><span class="sev high">HIGH</span> <span class="loc">L278</span> Untracked command thread outlives Activity and posts UI</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="e3" onchange="updateProgress()">
+  <label for="e3"><span class="sev high">HIGH</span> <span class="loc">L383</span> Untracked fetch thread outlives Activity and posts logs</label>
+</div>
+<div class="item">
+  <input type="checkbox" id="e4" onchange="updateProgress()">
+  <label for="e4"><span class="sev high">HIGH</span> <span class="loc">L379</span> stopLogPoller() interrupts but doesn't cancel HTTP connection</label>
+</div>
+
+<div class="file-name">Resource Leaks</div>
+
+<div class="item">
+  <input type="checkbox" id="e5" onchange="updateProgress()">
+  <label for="e5"><span class="sev low">LEAK</span> <span class="loc">L370,403</span> HTTP connections not disconnected in finally block</label>
+</div>
+
+</div>
+
+<script>
+let total=document.querySelectorAll('input[type=checkbox]').length;
+document.getElementById('totalCount').textContent=total;
+function updateProgress(){
+  let checked=document.querySelectorAll('input[type=checkbox]:checked').length;
+  let pct=(checked/total*100).toFixed(0);
+  document.getElementById('doneCount').textContent=checked;
+  document.getElementById('progressBar').style.width=pct+'%';
+  document.getElementById('progressBar').textContent=pct+'%';
+}
+</script>
+</body>
+</html>
