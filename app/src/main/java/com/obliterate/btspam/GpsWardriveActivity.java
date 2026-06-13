@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.bluetooth.*;
 import android.bluetooth.le.*;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.location.*;
 import android.os.*;
@@ -21,6 +22,8 @@ import java.util.*;
  * Export as GeoJSON for Google Maps / GIS tools.
  */
 public class GpsWardriveActivity extends Activity {
+
+    private static final int REQUEST_STORAGE = 4;
 
     // ── GPS ───────────────────────────────────
     private LocationManager locationManager;
@@ -46,6 +49,7 @@ public class GpsWardriveActivity extends Activity {
     private Button btnStart, btnStop, btnExportGeo, btnExportTrack, btnBack;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wakeLock;
+    private Runnable pendingStorageAction;
 
     // ── Data classes ───────────────────────────
     private static class MappedDevice {
@@ -207,7 +211,11 @@ public class GpsWardriveActivity extends Activity {
     private Button mkActionBtn(String label, final String action) {
         Button b = mkBtnWide(label);
         b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-            try { GpsWardriveActivity.class.getDeclaredMethod(action).invoke(GpsWardriveActivity.this); } catch (Exception e) { log("✕ " + e.getMessage()); }
+            try {
+                java.lang.reflect.Method m = GpsWardriveActivity.class.getDeclaredMethod(action);
+                m.setAccessible(true);
+                m.invoke(GpsWardriveActivity.this);
+            } catch (Exception e) { log("✕ " + e.getMessage()); }
         }});
         return b;
     }
@@ -301,7 +309,7 @@ public class GpsWardriveActivity extends Activity {
 
         MappedDevice md = new MappedDevice();
         md.address = addr;
-        md.name = d.getName() != null ? d.getName() : addr;
+        md.name = ObBluetooth.deviceName(d);
         md.lat = lat; md.lng = lng;
         md.rssi = rssi;
         md.timestamp = System.currentTimeMillis();
@@ -321,8 +329,9 @@ public class GpsWardriveActivity extends Activity {
     }
 
     private void updateStats() {
-        final int devs = mappedDevices.size();
-        final int track = trackPoints.size();
+        final int devs; final int track;
+        synchronized (mappedDevices) { devs = mappedDevices.size(); }
+        synchronized (trackPoints) { track = trackPoints.size(); }
         mainHandler.post(new Runnable() { public void run() {
             statsText.setText(String.format("Devices: %d  Track: %dpts", devs, track));
         }});
@@ -368,7 +377,32 @@ public class GpsWardriveActivity extends Activity {
     //  EXPORT — GeoJSON
     // ═══════════════════════════════════════════
 
+    private boolean hasStoragePermission() {
+        return ObStorage.hasLegacyWritePermission(this);
+    }
+
+    private void requestStoragePermission(Runnable onGranted) {
+        pendingStorageAction = onGranted;
+        ObStorage.requestLegacyWritePermission(this, REQUEST_STORAGE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == REQUEST_STORAGE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            log("✓ Storage permission granted");
+            if (pendingStorageAction != null) {
+                pendingStorageAction.run();
+                pendingStorageAction = null;
+            }
+        }
+    }
+
     private void exportGeoJson() {
+        if (!hasStoragePermission()) {
+            log("📁 Requesting storage permission for export...");
+            requestStoragePermission(new Runnable() { public void run() { exportGeoJson(); }});
+            return;
+        }
         if (mappedDevices.isEmpty()) { log("✕ No devices to export"); return; }
         new Thread(new Runnable() { public void run() {
             try {
@@ -418,6 +452,11 @@ public class GpsWardriveActivity extends Activity {
     // ═══════════════════════════════════════════
 
     private void exportGpx() {
+        if (!hasStoragePermission()) {
+            log("📁 Requesting storage permission for export...");
+            requestStoragePermission(new Runnable() { public void run() { exportGpx(); }});
+            return;
+        }
         if (trackPoints.isEmpty()) { log("✕ No track points. Enable '🛤 TRACK PATH' first."); return; }
         new Thread(new Runnable() { public void run() {
             try {
@@ -484,30 +523,19 @@ public class GpsWardriveActivity extends Activity {
         }});
     }
 
-    private void acquireLock() { if (wakeLock != null) wakeLock.acquire(10 * 60 * 1000L); }
+    private void acquireLock() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10 * 60 * 1000L); }
     private void releaseLock() {
-        if (!isScanning && !isTracking && wakeLock != null) wakeLock.release();
+        if (!isScanning && !isTracking && wakeLock != null && wakeLock.isHeld()) wakeLock.release();
     }
-    private void setBtnOn(Button b, String t) { b.setText(t); b.setTextColor(0xFF00FF41); }
-    private void resetBtn(Button b, String t) { b.setText(t); b.setTextColor(0xFFFF2222); }
-    private int dp(int px) { return (int)(px * getResources().getDisplayMetrics().density); }
+    private void setBtnOn(Button b, String t) { ObUi.setButtonOn(b, t); }
+    private void resetBtn(Button b, String t) { ObUi.resetButton(b, t); }
+    private int dp(int px) { return ObUi.dp(this, px); }
 
     private TextView mkLabel(String t, int c, int s) {
-        TextView tv = new TextView(this);
-        tv.setText(t); tv.setTextColor(c); tv.setTextSize(s);
-        tv.setTypeface(Typeface.MONOSPACE); tv.setPadding(0, 6, 0, 2);
-        return tv;
+        return ObUi.tightLabel(this, t, c, s);
     }
 
     private Button mkBtnWide(String t) {
-        Button b = new Button(this);
-        b.setText(t); b.setTextColor(0xFFFF2222); b.setBackgroundColor(0xFF1A1A1A);
-        b.setTypeface(Typeface.MONOSPACE); b.setTextSize(10); b.setAllCaps(true);
-        b.setPadding(6, 14, 6, 14); b.setSingleLine(true);
-        b.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        p.setMargins(3, 5, 3, 5); b.setLayoutParams(p);
-        return b;
+        return ObUi.weightedWideButton(this, t);
     }
 }

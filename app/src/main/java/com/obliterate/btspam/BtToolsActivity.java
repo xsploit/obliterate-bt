@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.bluetooth.*;
 import android.bluetooth.le.*;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.*;
 import android.text.method.ScrollingMovementMethod;
@@ -19,6 +20,8 @@ import java.util.*;
  * All Bluetooth recon + tools in one page.
  */
 public class BtToolsActivity extends Activity {
+
+    private static final int REQUEST_STORAGE = 4;
 
     // ── Bluetooth ──────────────────────────────
     private BluetoothAdapter btAdapter;
@@ -86,7 +89,8 @@ public class BtToolsActivity extends Activity {
         if (leScanner != null && activeBleScanCb != null) try { leScanner.stopScan(activeBleScanCb); } catch (Exception e) {}
         mainHandler.removeCallbacksAndMessages(null);
         try { unregisterReceiver(mBtReceiver); } catch (Exception e) {}
-        if (wakeLock != null) wakeLock.release();
+        if (activeDialog != null) try { activeDialog.dismiss(); } catch (Exception e) {}
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();
     }
 
@@ -234,7 +238,8 @@ public class BtToolsActivity extends Activity {
             String type = c != null ? getDeviceTypeName(c.getMajorDeviceClass()) : "?";
             names[i] = (i+1) + ". " + getDeviceName(d) + "  " + type;
         }
-        new AlertDialog.Builder(this).setTitle("🔬 Select Device to Inspect")
+        if (activeDialog != null) try { activeDialog.dismiss(); } catch (Exception e) {}
+        activeDialog = new AlertDialog.Builder(this).setTitle("🔬 Select Device to Inspect")
             .setItems(names, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int which) {
                     BluetoothDevice d = devs.get(which);
@@ -249,6 +254,8 @@ public class BtToolsActivity extends Activity {
     }
 
     private BluetoothDevice inspectTarget = null;
+    private AlertDialog activeDialog;
+    private Runnable pendingStorageAction;
     
     private void showInspectResult(BluetoothDevice d, Parcelable[] uuids) {
         BluetoothClass btClass = d.getBluetoothClass();
@@ -288,7 +295,8 @@ public class BtToolsActivity extends Activity {
             Short rssi = deviceRssiMap.get(d.getAddress());
             names[i] = (i+1) + ". " + getDeviceName(d) + "  " + (rssi != null ? rssi + "dBm" : "");
         }
-        new AlertDialog.Builder(this).setTitle("📏 Select Device to Track")
+        if (activeDialog != null) try { activeDialog.dismiss(); } catch (Exception e) {}
+        activeDialog = new AlertDialog.Builder(this).setTitle("📏 Select Device to Track")
             .setItems(names, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int which) {
                     trackTarget = devs.get(which);
@@ -350,7 +358,7 @@ public class BtToolsActivity extends Activity {
 
     private void stopTracking() {
         isTracking = false; trackTarget = null;
-        if (btAdapter != null && btAdapter.isDiscovering()) btAdapter.cancelDiscovery();
+        if (btAdapter != null && btAdapter.isDiscovering()) try { btAdapter.cancelDiscovery(); } catch (Exception e) {}
         resetBtn(btnTrack, "📏 TRACK RSSI");
         rssiText.setText("");
         updateStatus("IDLE");
@@ -371,7 +379,8 @@ public class BtToolsActivity extends Activity {
         if (devs.isEmpty()) { log("✕ Scan first"); return; }
         final String[] names = new String[devs.size()];
         for (int i = 0; i < devs.size(); i++) names[i] = (i+1) + ". " + getDeviceName(devs.get(i));
-        new AlertDialog.Builder(this).setTitle("📡 Select Device for RFCOMM Scan")
+        if (activeDialog != null) try { activeDialog.dismiss(); } catch (Exception e) {}
+        activeDialog = new AlertDialog.Builder(this).setTitle("📡 Select Device for RFCOMM Scan")
             .setItems(names, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int which) {
                     final BluetoothDevice d = devs.get(which);
@@ -382,17 +391,20 @@ public class BtToolsActivity extends Activity {
                     new Thread(new Runnable() { public void run() {
                         for (int ch = 1; ch <= 30 && isRfcommScanning; ch++) {
                             final int channel = ch;
+                            BluetoothSocket s = null;
                             try {
                                 java.lang.reflect.Method m = d.getClass().getMethod("createRfcommSocket", int.class);
-                                BluetoothSocket s = (BluetoothSocket) m.invoke(d, channel);
-                                s.connect();
-                                s.close();
-                                final String service = getRfcommServiceName(channel);
-                                mainHandler.post(new Runnable() { public void run() {
-                                    log("  ✓ Channel " + channel + " OPEN — " + service);
-                                }});
+                                s = (BluetoothSocket) m.invoke(d, channel);
+                                if (connectWithTimeout(s, 2000)) {
+                                    final String service = getRfcommServiceName(channel);
+                                    mainHandler.post(new Runnable() { public void run() {
+                                        log("  ✓ Channel " + channel + " OPEN — " + service);
+                                    }});
+                                }
                             } catch (Exception e) {
                                 // Channel closed or error — only log every 5 failures to reduce noise
+                            } finally {
+                                if (s != null) try { s.close(); } catch (Exception ex) {}
                             }
                             try { Thread.sleep(300); } catch (InterruptedException e) { break; }
                         }
@@ -447,7 +459,32 @@ public class BtToolsActivity extends Activity {
     //  EXPORT
     // ═══════════════════════════════════════════
 
+    private boolean hasStoragePermission() {
+        return ObStorage.hasLegacyWritePermission(this);
+    }
+
+    private void requestStoragePermission(Runnable onGranted) {
+        pendingStorageAction = onGranted;
+        ObStorage.requestLegacyWritePermission(this, REQUEST_STORAGE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == REQUEST_STORAGE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            log("✓ Storage permission granted");
+            if (pendingStorageAction != null) {
+                pendingStorageAction.run();
+                pendingStorageAction = null;
+            }
+        }
+    }
+
     private void exportScans() {
+        if (!hasStoragePermission()) {
+            log("📁 Requesting storage permission for export...");
+            requestStoragePermission(new Runnable() { public void run() { exportScans(); }});
+            return;
+        }
         final ArrayList<BluetoothDevice> devs;
         synchronized (discoveredDevices) { devs = new ArrayList<>(discoveredDevices); }
         if (devs.isEmpty()) { log("✕ No devices"); return; }
@@ -567,60 +604,35 @@ public class BtToolsActivity extends Activity {
     }
 
     private String getDeviceName(BluetoothDevice d) {
-        String n = d.getName(); return (n != null && !n.isEmpty()) ? n : d.getAddress();
+        return ObBluetooth.deviceName(d);
     }
 
     private String getDeviceTypeName(int major) {
-        switch (major) {
-            case BluetoothClass.Device.Major.AUDIO_VIDEO: return "Audio";
-            case BluetoothClass.Device.Major.COMPUTER: return "Computer";
-            case BluetoothClass.Device.Major.PHONE: return "Phone";
-            case BluetoothClass.Device.Major.WEARABLE: return "Wearable";
-            case BluetoothClass.Device.Major.HEALTH: return "Health";
-            case BluetoothClass.Device.Major.TOY: return "Toy";
-            case BluetoothClass.Device.Major.PERIPHERAL: return "Peripheral";
-            case BluetoothClass.Device.Major.NETWORKING: return "Network";
-            case BluetoothClass.Device.Major.IMAGING: return "Imaging";
-            default: return "Device";
-        }
+        return ObBluetooth.deviceTypeName(major);
     }
 
     private String getDeviceSubType(BluetoothClass bc) {
-        int dc = bc.getDeviceClass();
-        if (bc.getMajorDeviceClass() == BluetoothClass.Device.Major.AUDIO_VIDEO) {
-            if (dc == 0x0404) return "Headset"; if (dc == 0x0408) return "Speaker";
-            if (dc == 0x0414) return "Car Audio"; if (dc == 0x043C) return "Gaming";
-        }
-        if (bc.getMajorDeviceClass() == BluetoothClass.Device.Major.PHONE) {
-            if (dc == 0x0208) return "Smartphone"; if (dc == 0x0200) return "Cell";
-        }
-        if (bc.getMajorDeviceClass() == BluetoothClass.Device.Major.COMPUTER) {
-            if (dc == 0x0108) return "Laptop"; if (dc == 0x0100) return "Desktop";
-        }
-        if (bc.getMajorDeviceClass() == BluetoothClass.Device.Major.WEARABLE) {
-            if (dc == 0x0704) return "Watch";
-        }
-        return "0x" + Integer.toHexString(dc);
+        return ObBluetooth.deviceSubType(bc);
     }
 
     private String getUuidName(String uuid) {
-        if (uuid.contains("1101")) return "→ Serial Port (SPP)";
-        if (uuid.contains("1103")) return "→ Dial-Up";
-        if (uuid.contains("1105")) return "→ OBEX Push";
-        if (uuid.contains("1106")) return "→ OBEX File Transfer";
-        if (uuid.contains("1108")) return "→ Headset (HSP)";
-        if (uuid.contains("110A")) return "→ Audio Source (A2DP)";
-        if (uuid.contains("110B")) return "→ Audio Sink";
-        if (uuid.contains("110C")) return "→ AVRCP Remote";
-        if (uuid.contains("1112")) return "→ Headset AG (HFP)";
-        if (uuid.contains("1116")) return "→ PAN Tether";
-        if (uuid.contains("111E")) return "→ Hands-Free";
-        if (uuid.contains("1124")) return "→ HID Keyboard/Mouse";
-        if (uuid.contains("1130")) return "→ MAP (SMS/MMS)";
-        if (uuid.contains("1132")) return "→ PBAP (Phone Book)";
-        if (uuid.contains("1200")) return "→ PnP Info";
-        if (uuid.contains("180A")) return "→ Device Info";
-        return "";
+        return ObBluetooth.uuidName(uuid);
+    }
+
+    // Connect on a separate thread with a hard timeout. Closing the socket from
+    // another thread usually unblocks a stuck BluetoothSocket.connect() call.
+    private boolean connectWithTimeout(final BluetoothSocket socket, final long timeoutMs) {
+        final boolean[] connected = {false};
+        Thread t = new Thread(new Runnable() { public void run() {
+            try { socket.connect(); connected[0] = true; } catch (Exception e) {}
+        }});
+        t.start();
+        try { t.join(timeoutMs); } catch (InterruptedException e) { t.interrupt(); return false; }
+        if (!connected[0]) {
+            try { socket.close(); } catch (Exception e) {}
+            try { t.join(500); } catch (Exception e) {}
+        }
+        return connected[0];
     }
 
     private String getRfcommServiceName(int channel) {
@@ -664,35 +676,24 @@ public class BtToolsActivity extends Activity {
     }
 
     private void acquireLock() {
-        if (wakeLock != null) wakeLock.acquire(10 * 60 * 1000L);
+        if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10 * 60 * 1000L);
     }
 
     private void releaseLock() {
-        if (wakeLock != null && !isTracking && !isRfcommScanning && !isBtNameTurbo)
+        if (!isTracking && !isRfcommScanning && !isBtNameTurbo && wakeLock != null && wakeLock.isHeld())
             wakeLock.release();
     }
 
-    private void setBtnOn(Button b, String t) { b.setText(t); b.setTextColor(0xFF00FF41); }
-    private void resetBtn(Button b, String t) { b.setText(t); b.setTextColor(0xFFFF2222); }
+    private void setBtnOn(Button b, String t) { ObUi.setButtonOn(b, t); }
+    private void resetBtn(Button b, String t) { ObUi.resetButton(b, t); }
 
-    private int dp(int px) { return (int)(px * getResources().getDisplayMetrics().density); }
+    private int dp(int px) { return ObUi.dp(this, px); }
 
     private TextView mkLabel(String txt, int color, int size) {
-        TextView tv = new TextView(this);
-        tv.setText(txt); tv.setTextColor(color); tv.setTextSize(size);
-        tv.setTypeface(Typeface.MONOSPACE); tv.setPadding(0, 6, 0, 2);
-        return tv;
+        return ObUi.tightLabel(this, txt, color, size);
     }
 
     private Button mkBtnWide(String txt) {
-        Button b = new Button(this);
-        b.setText(txt); b.setTextColor(0xFFFF2222); b.setBackgroundColor(0xFF1A1A1A);
-        b.setTypeface(Typeface.MONOSPACE); b.setTextSize(10); b.setAllCaps(true);
-        b.setPadding(6, 14, 6, 14); b.setSingleLine(true);
-        b.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        p.setMargins(3, 5, 3, 5); b.setLayoutParams(p);
-        return b;
+        return ObUi.weightedWideButton(this, txt);
     }
 }
